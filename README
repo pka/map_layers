@@ -1,0 +1,100 @@
+=MapLayers plugin for Rails
+
+MapLayers makes it easy to put a dynamic map in a Rails application. It can display map tiles and markers loaded from any source.
+The included map viewer is OpenLayers http://www.openlayers.org/.
+With MapLayers you can publish ActiveRecord models as OGC web feature service or as KML and display it as a map layer.
+
+
+=Getting Started
+
+Install the latest version of the plugin:
+  ./script/plugin install http://activescaffold.googlecode.com/svn/tags/active_scaffold
+
+or you can install from trunk (http://activescaffold.googlecode.com/svn/trunk) and get the latest updates as the core team submits them. However, the trunk version can be highly unstable (perhaps not even full tested) and is not recommended.
+
+Create a controller and a view
+  ./script/generate controller Map index
+
+Add this to your layout:
+  <%= map_layers_includes :GMAP_KEY => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ" %>
+
+Put a map in your view:
+    <div id="map" style="width: 500px; height: 500px;"></div>
+
+    <script defer="defer" type="text/javascript">
+      var map = new OpenLayers.Map('map', {theme: false});
+      map.addControl( new OpenLayers.Control.LayerSwitcher() );
+      var wms = new OpenLayers.Layer.WMS( "OpenLayers WMS", 
+        "http://labs.metacarta.com/wms/vmap0", {layers: 'basic'} );
+      map.addLayer(wms);
+      map.zoomToMaxExtent();
+    </script>
+
+=Publish your own data
+
+Create a model:
+  ./script/generate model --skip-timestamps --skip-fixture Place placeName:string countryCode:string postalCode:string lat:float lng:float
+  rake db:migrate
+
+Import some places:
+  ./script/runner "Geonames::Postalcode.search('Sidney').each { |pc| Place.create(pc.attributes.slice('placeName', 'postalCode', 'countryCode', 'lat', 'lng')) }"
+
+Add a new controller with a map_layer:
+
+  class PlacesController < ApplicationController
+
+    map_layer :place, :text => :placeName
+
+  end
+
+Add a layer to the map:
+
+    map.addLayer(new OpenLayers.Layer.GeoRSS("GeoRSS", "/places/georss"));
+
+
+Other types of served layers:
+
+    map.addLayer(new OpenLayers.Layer.GML("KML", "/places/kml", {format: OpenLayers.Format.KML}));
+
+    var wfs = new OpenLayers.Layer.WFS( "WFS",
+            "/places/wfs?",
+            {typename: "places", maxfeatures: 50},
+            { featureClass: OpenLayers.Feature.WFS});
+    map.addLayer(wfs);
+
+
+Using a spatial database:
+
+    sudo gem install georuby
+    ruby script/plugin install svn://rubyforge.org/var/svn/georuby/SpatialAdapter/trunk/spatial_adapter
+
+Install spatial functions in your DB (e.g. Postgis 8.1):
+    DB=map_layers_dev
+    createlang plpgsql $DB
+    psql -d $DB -q -f /usr/share/postgresql-8.1-postgis/lwpostgis.sql
+
+Create a model:
+  ./script/generate model --skip-timestamps --skip-fixture WeatherStation name:string geom:point
+  rake db:migrate
+
+Import some places:
+  ./script/runner "Geonames::Weather.weather(:north => 44.1, :south => -9.9, :east => -22.4, :west => 55.2).each { |st| WeatherStation.create(:name => st.stationName, :geom => Point.from_x_y(st.lng, st.lat)) }"
+
+Add a new controller with a map_layer:
+
+  class WeatherStationsController < ApplicationController
+
+    map_layer :weater_stations, :geom => :geom
+
+  end
+
+Add a WFS layer to the map:
+
+    var wfs = new OpenLayers.Layer.WFS( "WFS",
+            "/weather_stations/wfs?",
+            {typename: "weather_stations", maxfeatures: 50},
+            { featureClass: OpenLayers.Feature.WFS});
+    map.addLayer(wfs);
+
+
+Copyright (c) 2008 Pirmin Kalberer, Sourcepole AG, released under the MIT license
