@@ -8,9 +8,7 @@ With MapLayers you can publish ActiveRecord models as OGC web feature service or
 =Getting Started
 
 Install the latest version of the plugin:
-  ./script/plugin install http://activescaffold.googlecode.com/svn/tags/active_scaffold
-
-or you can install from trunk (http://activescaffold.googlecode.com/svn/trunk) and get the latest updates as the core team submits them. However, the trunk version can be highly unstable (perhaps not even full tested) and is not recommended.
+  ./script/plugin install http://www.sourcepole.ch/svn/plugins/map_layers/trunk
 
 Create a controller and a view
   ./script/generate controller Map index
