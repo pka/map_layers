@@ -1,6 +1,6 @@
 =MapLayers plugin for Rails
 
-MapLayers makes it easy to put a dynamic map in a Rails application. It can display map tiles and markers loaded from any source.
+MapLayers makes it easy to integrate a dynamic map in a Rails application. It can display map tiles and markers loaded from any date source.
 The included map viewer is OpenLayers http://www.openlayers.org/.
 With MapLayers you can publish ActiveRecord models as OGC web feature service or as KML and display it as a map layer.
 
@@ -14,7 +14,7 @@ Create a controller and a view
   ./script/generate controller Map index
 
 Add this to your layout:
-  <%= map_layers_includes :GMAP_KEY => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ" %>
+  <%= map_layers_includes :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ" %>
 
 Put a map in your view:
     <div id="map" style="width: 500px; height: 500px;"></div>
@@ -82,7 +82,7 @@ Add a new controller with a map_layer:
 
   class WeatherStationsController < ApplicationController
 
-    map_layer :weater_stations, :geom => :geom
+    map_layer :weater_stations, :geometry => :geom
 
   end
 

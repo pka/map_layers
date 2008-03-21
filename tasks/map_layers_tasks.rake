@@ -3,7 +3,7 @@ namespace :map_layers do
   desc "Install development libraries"
   task :install_dev_lib do
     plugin_root =  File.join(File.dirname(__FILE__), "..")
-    copy_files("/OpenLayers/lib", "/public", plugin_root)
+    copy_files("/OpenLayers/lib", "/public/javascripts", plugin_root)
   end
 
   def copy_files(source_path, destination_path, plugin_root)
@@ -14,7 +14,7 @@ namespace :map_layers do
 
   desc "Remove development libraries"
   task :uninstall_dev_lib do
-    FileUtils.rm_r(File.join(RAILS_ROOT, "/public/lib"))
+    FileUtils.rm_r(File.join(RAILS_ROOT, "/public/javascripts/lib"))
   end
 
 

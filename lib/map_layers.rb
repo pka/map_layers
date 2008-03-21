@@ -11,7 +11,7 @@ module MapLayers # :nodoc:
   module ClassMethods
 
     def map_layer(model_id = nil, options = {})
-      options.assert_valid_keys(:id, :lat, :lon, :geom, :text)
+      options.assert_valid_keys(:id, :lat, :lon, :geometry, :text)
 
       # converts Foo::BarController to 'bar' and FooBarsController to 'foo_bar' and AddressController to 'address'
       model_id = self.to_s.split('::').last.sub(/Controller$/, '').pluralize.singularize.underscore unless model_id
@@ -36,14 +36,14 @@ module MapLayers # :nodoc:
 
 
   class Config
-    attr_reader :model_id, :id, :lat, :lon, :geom, :text
+    attr_reader :model_id, :id, :lat, :lon, :geometry, :text
     
     def initialize(model_id, options)
       @model_id = model_id.to_s.pluralize.singularize
       @id = options[:id] || :id
       @lat = options[:lat] || :lat
       @lon = options[:lon] || :lng
-      @geom = options[:geom]
+      @geometry = options[:geometry]
       @text = options[:text] || :name
     end
     
@@ -54,10 +54,10 @@ module MapLayers # :nodoc:
 
   
   class Feature < Struct.new(:text, :x, :y, :id)
-    attr_accessor :geom
+    attr_accessor :geometry
     def self.from_geom(text, geom, id = nil)
       f = new(text, geom.x, geom.y, id)
-      f.geom = geom
+      f.geometry = geom
       f
     end
   end
@@ -69,15 +69,17 @@ module MapLayers # :nodoc:
     def kml
       rows = map_layers_config.model.find(:all, :limit => KML_FEATURE_LIMIT)
       @features = rows.collect do |row|
-        if map_layers_config.geom
-          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geom.to_s])
+        if map_layers_config.geometry
+          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
         else
           Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s])
         end
       end
       @folder_name = map_layers_config.model_id.to_s.pluralize.humanize
+      logger.info "MapLayers::KML: returning #{@features.size} features"
       render :inline => KML_XML_ERB, :content_type => "text/xml"
-    rescue
+    rescue Exception => e
+      logger.info "MapLayers::KML: returning no features - Caught exception '#{e}'"
       render :text => KML_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
@@ -117,15 +119,15 @@ EOS
     # Publish layer in WFS format
     def wfs
       minx, miny, maxx, maxy = extract_params
-      if map_layers_config.geom
+      if map_layers_config.geometry
         spatial_cond = if map_layers_config.model.respond_to?(:sanitize_sql_hash_for_conditions)
-          map_layers_config.model.sanitize_sql_hash_for_conditions(map_layers_config.geom => [[minx, miny],[maxx, maxy]])
+          map_layers_config.model.sanitize_sql_hash_for_conditions(map_layers_config.geometry => [[minx, miny],[maxx, maxy]])
         else # Rails < 2
-          map_layers_config.model.sanitize_sql_hash(map_layers_config.geom => [[minx, miny],[maxx, maxy]])
+          map_layers_config.model.sanitize_sql_hash(map_layers_config.geometry => [[minx, miny],[maxx, maxy]])
         end
         rows = map_layers_config.model.find(:all, :limit => @maxfeatures, :conditions => spatial_cond)
         @features = rows.collect do |row|
-          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geom.to_s])
+          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
         end
       else
         rows = map_layers_config.model.find(:all, :limit => @maxfeatures)
@@ -133,8 +135,10 @@ EOS
           Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s])
         end
       end
+      logger.info "MapLayers::WFS: returning #{@features.size} features"
       render :inline => WFS_XML_ERB, :content_type => "text/xml"
-    rescue
+    rescue Exception => e
+      logger.info "MapLayers::WFS: returning no features - Caught exception '#{e}'"
       render :text => WFS_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
@@ -207,8 +211,8 @@ EOS
     def georss
       rows = map_layers_config.model.find(:all, :limit => GEORSS_FEATURE_LIMIT)
       @features = rows.collect do |row|
-        if map_layers_config.geom
-          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geom.to_s], row.attributes[map_layers_config.id.to_s])
+        if map_layers_config.geometry
+          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s], row.attributes[map_layers_config.id.to_s])
         else
           Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s], row.attributes[map_layers_config.id.to_s])
         end
@@ -216,8 +220,10 @@ EOS
       @base_url = "http://#{request.env["HTTP_HOST"]}/"
       @item_url = "#{@base_url}#{map_layers_config.model_id.to_s.pluralize}"
       @title = map_layers_config.model_id.to_s.pluralize.humanize
+      logger.info "MapLayers::GEORSS: returning #{@features.size} features"
       render :inline => GEORSS_XML_ERB, :content_type => "text/xml"
-    rescue
+    rescue Exception => e
+      logger.info "MapLayers::GEORSS: returning no features - Caught exception '#{e}'"
       render :text => GEORSS_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
@@ -260,17 +266,12 @@ EOS
 
     GEORSS_EMPTY_RESPONSE = <<EOS # :nodoc:
 <?xml version="1.0" encoding="UTF-8"?>
-<rdf:RDF  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-  xmlns="http://purl.org/rss/1.0/"
-  xmlns:dc="http://purl.org/dc/elements/1.1/"
-  xmlns:georss="http://www.georss.org/georss">
-<docs>Empty Result</docs>
-<link><%= @base_url %></link>
-<title><%= @title %></title>
-<description></description>
-<channel rdf:about="<%= @base_url %>">
-<link><%= @base_url %></link>
-<title><%= @title %></title>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns="http://purl.org/rss/1.0/">
+<docs></docs>
+<channel rdf:about="http://purl.org/rss/1.0/">
+<link>http://purl.org/rss/1.0/</link>
+<title>Empty GeoRSS</title>
 <description></description>
 <items>
 <rdf:Seq>
