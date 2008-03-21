@@ -116,24 +116,36 @@ EOS
   # WFS Server methods
   module WFS
     
-    DB_SRID = 4326
+    WGS84 = 4326
     
     # Publish layer in WFS format
     def wfs
       minx, miny, maxx, maxy = extract_params
+      model = map_layers_config.model
+      db_srid = model.columns_hash[map_layers_config.geometry.to_s].srid
       if map_layers_config.geometry
-        spatial_cond = if map_layers_config.model.respond_to?(:sanitize_sql_hash_for_conditions)
-          map_layers_config.model.sanitize_sql_hash_for_conditions(map_layers_config.geometry => [[minx, miny],[maxx, maxy], 4326])
-        else # Rails < 2
-          map_layers_config.model.sanitize_sql_hash(map_layers_config.geometry => [[minx, miny],[maxx, maxy], 4326])
+        pkey, text, geom = [model.primary_key, map_layers_config.text, map_layers_config.geometry].collect { |c| model.connection.quote_column_name(c) }
+        select_cols = if db_srid != -1
+          #Transform geometry from db_srid to requestet srid (TODO: Mysql compatibility)
+          "#{pkey},#{text},Transform(#{geom},#{@srid}) AS #{geom}"
+        else
+          #Transformation not possible for undefined db_srid
+          [pkey, text, geom].join(",")
         end
-        rows = map_layers_config.model.find(:all, :select => "id,#{map_layers_config.text.to_s},Transform(#{map_layers_config.geometry.to_s},#{@epsg}) AS #{map_layers_config.geometry.to_s}",
-          :limit => @maxfeatures, :conditions => spatial_cond)
+
+        spatial_cond = if model.respond_to?(:sanitize_sql_hash_for_conditions)
+          model.sanitize_sql_hash_for_conditions(map_layers_config.geometry => [[minx, miny],[maxx, maxy], db_srid])
+        else # Rails < 2
+          model.sanitize_sql_hash(map_layers_config.geometry => [[minx, miny],[maxx, maxy], db_srid])
+        end
+        #spatial_cond = "Transform(#{spatial_cond}, #{db_srid}) )" Not necessary: bbox is always WGS84 !?
+
+        rows = model.find(:all, :select => select_cols, :limit => @maxfeatures, :conditions => spatial_cond)
         @features = rows.collect do |row|
           Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
         end
       else
-        rows = map_layers_config.model.find(:all, :limit => @maxfeatures)
+        rows = model.find(:all, :limit => @maxfeatures)
         @features = rows.collect do |row|
           Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s])
         end
@@ -151,7 +163,7 @@ EOS
     
     def extract_params # :nodoc:
       @maxfeatures = (params[:maxfeatures] || WFS_FEATURE_LIMIT).to_i
-      @epsg = params['SRS'].split(/:/)[1].to_i rescue 4326
+      @srid = params['SRS'].split(/:/)[1].to_i rescue WGS84
       req_bbox = params['BBOX'].split(/,/).collect {|n| n.to_f } rescue nil
       @bbox = req_bbox || [-180.0, -90.0, 180.0, 90.0]
     end
@@ -167,7 +179,7 @@ EOS
    xsi:schemaLocation="http://www.opengis.net/wfs http://schemas.opengeospatial.net/wfs/1.0.0/WFS-basic.xsd 
                        http://mapserver.gis.umn.edu/mapserver http://www.geopole.org/map/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=DescribeFeatureType&amp;TYPENAME=geopole&amp;OUTPUTFORMAT=XMLSCHEMA">
   <gml:boundedBy>
-    <gml:Box srsName="EPSG:<%= @epsg %>">
+    <gml:Box srsName="EPSG:<%= @srid %>">
       <gml:coordinates><%= @bbox[0] %>,<%= @bbox[1] %> <%= @bbox[2] %>,<%= @bbox[3] %></gml:coordinates>
     </gml:Box>
   </gml:boundedBy>
@@ -175,12 +187,12 @@ EOS
     <gml:featureMember>
       <ms:geopole>
         <gml:boundedBy>
-          <gml:Box srsName="EPSG:<%= @epsg %>">
+          <gml:Box srsName="EPSG:<%= @srid %>">
             <gml:coordinates><%= feature.x %>,<%= feature.y %> <%= feature.x %>,<%= feature.y %></gml:coordinates>
           </gml:Box>
         </gml:boundedBy>
         <ms:msGeometry>
-        <gml:Point srsName="EPSG:<%= @epsg %>">
+        <gml:Point srsName="EPSG:<%= @srid %>">
           <gml:coordinates><%= feature.x %>,<%= feature.y %></gml:coordinates>
         </gml:Point>
         </ms:msGeometry>
