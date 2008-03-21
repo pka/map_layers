@@ -79,7 +79,7 @@ module MapLayers # :nodoc:
       logger.info "MapLayers::KML: returning #{@features.size} features"
       render :inline => KML_XML_ERB, :content_type => "text/xml"
     rescue Exception => e
-      logger.info "MapLayers::KML: returning no features - Caught exception '#{e}'"
+      logger.error "MapLayers::KML: returning no features - Caught exception '#{e}'"
       render :text => KML_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
@@ -116,16 +116,19 @@ EOS
   # WFS Server methods
   module WFS
     
+    DB_SRID = 4326
+    
     # Publish layer in WFS format
     def wfs
       minx, miny, maxx, maxy = extract_params
       if map_layers_config.geometry
         spatial_cond = if map_layers_config.model.respond_to?(:sanitize_sql_hash_for_conditions)
-          map_layers_config.model.sanitize_sql_hash_for_conditions(map_layers_config.geometry => [[minx, miny],[maxx, maxy]])
+          map_layers_config.model.sanitize_sql_hash_for_conditions(map_layers_config.geometry => [[minx, miny],[maxx, maxy], 4326])
         else # Rails < 2
-          map_layers_config.model.sanitize_sql_hash(map_layers_config.geometry => [[minx, miny],[maxx, maxy]])
+          map_layers_config.model.sanitize_sql_hash(map_layers_config.geometry => [[minx, miny],[maxx, maxy], 4326])
         end
-        rows = map_layers_config.model.find(:all, :limit => @maxfeatures, :conditions => spatial_cond)
+        rows = map_layers_config.model.find(:all, :select => "id,#{map_layers_config.text.to_s},Transform(#{map_layers_config.geometry.to_s},#{@epsg}) AS #{map_layers_config.geometry.to_s}",
+          :limit => @maxfeatures, :conditions => spatial_cond)
         @features = rows.collect do |row|
           Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
         end
@@ -138,7 +141,7 @@ EOS
       logger.info "MapLayers::WFS: returning #{@features.size} features"
       render :inline => WFS_XML_ERB, :content_type => "text/xml"
     rescue Exception => e
-      logger.info "MapLayers::WFS: returning no features - Caught exception '#{e}'"
+      logger.error "MapLayers::WFS: returning no features - Caught exception '#{e}'"
       render :text => WFS_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
@@ -148,6 +151,7 @@ EOS
     
     def extract_params # :nodoc:
       @maxfeatures = (params[:maxfeatures] || WFS_FEATURE_LIMIT).to_i
+      @epsg = params['SRS'].split(/:/)[1].to_i rescue 4326
       req_bbox = params['BBOX'].split(/,/).collect {|n| n.to_f } rescue nil
       @bbox = req_bbox || [-180.0, -90.0, 180.0, 90.0]
     end
@@ -163,7 +167,7 @@ EOS
    xsi:schemaLocation="http://www.opengis.net/wfs http://schemas.opengeospatial.net/wfs/1.0.0/WFS-basic.xsd 
                        http://mapserver.gis.umn.edu/mapserver http://www.geopole.org/map/wfs?SERVICE=WFS&amp;VERSION=1.0.0&amp;REQUEST=DescribeFeatureType&amp;TYPENAME=geopole&amp;OUTPUTFORMAT=XMLSCHEMA">
   <gml:boundedBy>
-    <gml:Box srsName="EPSG:4326">
+    <gml:Box srsName="EPSG:<%= @epsg %>">
       <gml:coordinates><%= @bbox[0] %>,<%= @bbox[1] %> <%= @bbox[2] %>,<%= @bbox[3] %></gml:coordinates>
     </gml:Box>
   </gml:boundedBy>
@@ -171,12 +175,12 @@ EOS
     <gml:featureMember>
       <ms:geopole>
         <gml:boundedBy>
-          <gml:Box srsName="EPSG:4326">
+          <gml:Box srsName="EPSG:<%= @epsg %>">
             <gml:coordinates><%= feature.x %>,<%= feature.y %> <%= feature.x %>,<%= feature.y %></gml:coordinates>
           </gml:Box>
         </gml:boundedBy>
         <ms:msGeometry>
-        <gml:Point srsName="EPSG:4326">
+        <gml:Point srsName="EPSG:<%= @epsg %>">
           <gml:coordinates><%= feature.x %>,<%= feature.y %></gml:coordinates>
         </gml:Point>
         </ms:msGeometry>
@@ -223,7 +227,7 @@ EOS
       logger.info "MapLayers::GEORSS: returning #{@features.size} features"
       render :inline => GEORSS_XML_ERB, :content_type => "text/xml"
     rescue Exception => e
-      logger.info "MapLayers::GEORSS: returning no features - Caught exception '#{e}'"
+      logger.error "MapLayers::GEORSS: returning no features - Caught exception '#{e}'"
       render :text => GEORSS_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     

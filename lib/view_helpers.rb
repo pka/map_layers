@@ -5,7 +5,7 @@ module MapLayers
     #
     # options[:google] with GMAPS Key: Include Google Maps
     # options[:multimap]: Include MultiMap
-    # options[:openstreetmap]: Include VirtualEarth
+    # options[:openstreetmap]: Include Openstreetmap OSM
     # options[:virtualearth]: Include VirtualEarth
     # options[:yahoo]: Include Yahoo! Maps
     def map_layers_includes(options = {})
