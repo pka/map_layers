@@ -88,7 +88,7 @@ module MapLayers # :nodoc:
     KML_FEATURE_LIMIT = 1000
     
     KML_XML_ERB = <<EOS # :nodoc:
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <kml xmlns="http://earth.google.com/kml/2.0">
   <Document>
   <Folder><name><%= @folder_name %></name>
@@ -104,7 +104,7 @@ module MapLayers # :nodoc:
 EOS
 
     KML_EMPTY_RESPONSE = <<EOS # :nodoc:
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <kml xmlns="http://earth.google.com/kml/2.0">
   <Document>
   </Document>
@@ -124,15 +124,13 @@ EOS
       model = map_layers_config.model
       db_srid = model.columns_hash[map_layers_config.geometry.to_s].srid
       if map_layers_config.geometry
+        #Columns for select
         pkey, text, geom = [model.primary_key, map_layers_config.text, map_layers_config.geometry].collect { |c| model.connection.quote_column_name(c) }
-        select_cols = if db_srid != -1
-          #Transform geometry from db_srid to requestet srid (TODO: Mysql compatibility)
-          "#{pkey},#{text},Transform(#{geom},#{@srid}) AS #{geom}"
-        else
-          #Transformation not possible for undefined db_srid
-          [pkey, text, geom].join(",")
+        if db_srid != -1
+          #Transform geometry from db_srid to requested srid (not possible for undefined db_srid)
+          geom = "Transform(#{geom},#{@srid}) AS #{geom}"
         end
-
+        
         spatial_cond = if model.respond_to?(:sanitize_sql_hash_for_conditions)
           model.sanitize_sql_hash_for_conditions(map_layers_config.geometry => [[minx, miny],[maxx, maxy], db_srid])
         else # Rails < 2
@@ -140,7 +138,7 @@ EOS
         end
         #spatial_cond = "Transform(#{spatial_cond}, #{db_srid}) )" Not necessary: bbox is always WGS84 !?
 
-        rows = model.find(:all, :select => select_cols, :limit => @maxfeatures, :conditions => spatial_cond)
+        rows = model.find(:all, :select => [pkey, text, geom].join(","), :conditions => spatial_cond, :limit => @maxfeatures)
         @features = rows.collect do |row|
           Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
         end
@@ -204,7 +202,7 @@ EOS
 EOS
 
     WFS_EMPTY_RESPONSE = <<EOS # :nodoc:
-<?xml version='1.0' encoding="ISO-8859-1" ?>
+<?xml version='1.0' encoding="UTF-8" ?>
 <wfs:FeatureCollection
    xmlns:wfs="http://www.opengis.net/wfs"
    xmlns:gml="http://www.opengis.net/gml"
