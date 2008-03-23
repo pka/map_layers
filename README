@@ -13,20 +13,65 @@ Install the latest version of the plugin:
 Create a controller and a view
   ./script/generate controller Map index
 
-Add this to your layout:
+===Initialization of the map
+Add the map viewer initialization to the index action in the controller:
+    @map = MapLayers::Map.new("map") do |map, page|
+      page << map.add_map_layer(:Google, "Google Streets")
+      page << map.zoom_to_max_extent()
+    end
+
+Add this to the head of your view:
   <%= map_layers_includes :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ" %>
 
-Put a map in your view:
-    <div id="map" style="width: 500px; height: 500px;"></div>
+Put a map in the body your view:
+    <div id="map" style="width: 512px; height: 256px;"></div>
 
-    <script defer="defer" type="text/javascript">
-      var map = new OpenLayers.Map('map', {theme: false});
-      map.addControl( new OpenLayers.Control.LayerSwitcher() );
-      var wms = new OpenLayers.Layer.WMS( "OpenLayers WMS", 
-        "http://labs.metacarta.com/wms/vmap0", {layers: 'basic'} );
-      map.addLayer(wms);
-      map.zoomToMaxExtent();
-    </script>
+    <%= @map.to_html %>
+
+Test your basic map with http://localhost:3000/map
+
+===Multiple layers
+Add a second layer and some more controls in the controller action:
+    @map = MapLayers::Map.new("map") do |map, page|
+      page << map.add_map_layer(:Google, "Google Streets")
+      page << map.add_map_layer(:Yahoo, "Yahoo Sattelite")
+
+      page << map.add_control(Control::LayerSwitcher.new)    
+      page << map.add_control(Control::Permalink.new('permalink'))    
+      page << map.add_control(Control::MousePosition.new)
+
+      page << map.zoom_to_max_extent()
+    end
+
+Add the Yahoo! Javascript library to the includes:
+    <%= map_layers_includes :yahoo => true, :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ" %>
+
+There are many more layer types available:
+TODO
+
+===Initialization of the map
+Now we want to add some simple markers in an Ajax action.
+First we add a link in the view:
+
+    <%= link_to_remote "Add marker", :url => { :action => "add_marker" } %>
+
+Then we include a marker layer in the map. Put this after the add_map_layer statements in the controller:
+
+      page.assign("markers", Layer::Markers.new('Markers'))
+      page << map.addLayer(:markers)
+
+and then we implement the Ajax action:
+
+  def add_marker
+    render :update do |page|
+      @markers = JsVar.new('markers')
+      page << @markers.add_marker(OpenLayers::Marker.new(OpenLayers::LonLat.new(rand*50,rand*50)))
+    end
+  end
+
+For accessing the marker layer in the Ajax action, we declare a Javascript variable with +page.assign+
+and access the variable later with the +JsVar+ wrapper.
+
 
 =Publish your own data
 
@@ -47,7 +92,7 @@ Add a new controller with a map_layer:
 
 Add a layer to the map:
 
-    map.addLayer(new OpenLayers.Layer.GeoRSS("GeoRSS", "/places/georss"));
+    page << map.addLayer(Layer::GeoRSS.new("GeoRSS", "/places/georss"))
 
 
 Other types of served layers:

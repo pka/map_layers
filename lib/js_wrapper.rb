@@ -99,32 +99,42 @@ module MapLayers
         create
       end
     end
-      
+
+    #To cheat JavaScriptGenerator::GeneratorMethods::javascript_object_for
+    def to_json(options = {})
+      to_javascript
+    end
+
     #Creates a Mapping Object in JavaScript.
     #To be implemented by subclasses if needed
     def create
     end
   end
 
-  #Used to bind a ruby variable to an already existing JavaScript one. It doesn't have to be a variable in the sense "var variable" but it can be any valid JavaScript expression that has a value.
+  #A valid JavaScript expression that has a value.
   class JsExpr
     include JsWrapper
       
-    def initialize(variable)
-      @variable = variable
+    def initialize(expr)
+      @variable = expr
     end
     #Returns the javascript expression contained in the object.
     def create
       @variable
     end
-    #Returns the expression inside the JsExpr followed by a ";"
     def to_s
-      @variable + ";"
+      @variable
     end
 
     UNDEFINED = JsExpr.new("undefined")
   end
 
+  
+  #Used to bind a ruby variable to an already existing JavaScript one.
+  class JsVar < JsExpr
+  end
+
+  
   #Minimal Wrapper around a Javascript class
   class JsClass
     include JsWrapper
@@ -137,8 +147,23 @@ module MapLayers
       jsclass = self.class.to_s.split(/::/)[1..-1]
       jsclass.insert(0, 'OpenLayers') unless jsclass[0] == 'OpenLayers'
       args = @args.collect{ |arg| JsWrapper.javascriptify_variable(arg) }
-      "new #{jsclass.join('.')}(#{args.join('.')})"
-    end    
+      JsExpr.new("new #{jsclass.join('.')}(#{args.join(',')})")
+    end
   end
   
+  class JsGenerator
+    def initialize()
+      @lines = ''
+    end
+    def <<(javascript)
+      @lines << (javascript.is_a?(JsWrapper) ? javascript.to_javascript : javascript) << ";\n"
+    end
+    def assign(variable, value)
+      @lines << "#{variable} = #{JsWrapper::javascriptify_variable(value)};\n"
+    end
+    def to_s
+      @lines
+    end
+  end
+
 end
