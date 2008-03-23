@@ -151,7 +151,7 @@ module MapLayers
     end
   end
   
-  class JsGenerator
+  class JsGenerator # :nodoc:
     def initialize()
       @lines = ''
     end

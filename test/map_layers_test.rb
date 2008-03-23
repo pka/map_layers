@@ -81,14 +81,14 @@ EOS
   
   def test_google_example
     @map = MapLayers::Map.new("map") do |map, page|
-      page << map.add_map_layer(:Google, "Google Streets")
+      page << map.add_layer(MapLayers::GOOGLE)
       page << map.zoom_to_max_extent()
     end
     html =<<EOS
 <script defer="defer" type="text/javascript">
 var map;
 map = new OpenLayers.Map('map', {theme : false});
-map.addLayer(new OpenLayers.Layer.Google("Google Streets"));
+map.addLayer(new OpenLayers.Layer.Google("Google Street"));
 map.zoomToMaxExtent();
 </script>
 EOS
@@ -98,7 +98,8 @@ EOS
   def test_wms_example
     @map = MapLayers::Map.new("map") do |map,page|
       page << map.add_control(Control::LayerSwitcher.new)
-      page << map.add_map_layer(:WMS, "OpenLayers WMS", "http://labs.metacarta.com/wms/vmap0", {:layers => 'basic'} )
+      page << map.add_layer(MapLayers::Layer::WMS.new( "OpenLayers WMS",
+          "http://labs.metacarta.com/wms/vmap0", {:layers => 'basic'} ))
       page << map.zoom_to_max_extent()
     end
     html =<<EOS
@@ -115,14 +116,13 @@ EOS
   
   def test_kml_example
     @map = MapLayers::Map.new("map") do |map,page|
-      #map.addLayer(new OpenLayers.Layer.GML("KML", "/places/kml", {format: OpenLayers.Format.KML}));
-      page << map.add_new_layer(:GML, "KML", "/places/kml", {:format=> "OpenLayers.Format.KML"})
+      page << map.add_layer(Layer::GML.new("Places KML", "/places/kml", {:format=> JsExpr.new("OpenLayers.Format.KML")}))
     end
     html =<<EOS
 <script defer="defer" type="text/javascript">
 var map;
 map = new OpenLayers.Map('map', {theme : false});
-map.addNewLayer(GML,"KML","/places/kml",{format : "OpenLayers.Format.KML"});
+map.addLayer(new OpenLayers.Layer.GML("Places KML","/places/kml",{format : OpenLayers.Format.KML}));
 </script>
 EOS
     assert_equal(html , @map.to_html)
@@ -130,13 +130,13 @@ EOS
   
   def test_wfs_example
     @map = MapLayers::Map.new("map_div") do |map, page|
-      page << map.add_map_layer(:WFS, "WFS", "/places/wfs?", {:typename => "places"}, {:featureClass => "OpenLayers.Feature.WFS"})
+      page << map.add_layer(Layer::WFS.new("Places WFS", "/places/wfs", {:typename => "places"}, {:featureClass => JsExpr.new("OpenLayers.Feature.WFS")}))
     end
     html =<<EOS
 <script defer="defer" type="text/javascript">
 var map_div;
 map_div = new OpenLayers.Map('map_div', {theme : false});
-map_div.addLayer(new OpenLayers.Layer.WFS("WFS","/places/wfs?",{typename : "places"},{featureClass : "OpenLayers.Feature.WFS"}));
+map_div.addLayer(new OpenLayers.Layer.WFS("Places WFS","/places/wfs",{typename : "places"},{featureClass : OpenLayers.Feature.WFS}));
 </script>
 EOS
     assert_equal(html , @map.to_html)
