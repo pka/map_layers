@@ -1,7 +1,7 @@
 module MapLayers
 
   #The module where all the Ruby-to-JavaScript conversion takes place.
-  #Based on Ym4r::GmPlugin::MappingObject
+  #Based on Ym4r::GmPlugin::MappingObject from Guilhem Vellut
   module JsWrapper
     #The name of the variable in JavaScript space.
     attr_reader :variable

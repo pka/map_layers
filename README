@@ -2,10 +2,10 @@
 
 MapLayers makes it easy to integrate a dynamic map in a Rails application. It can display map tiles and markers loaded from any date source.
 The included map viewer is OpenLayers[http://www.openlayers.org/].
-With MapLayers you can publish ActiveRecord models as OGC web feature service or as KML and display it as a map layer.
+With MapLayers you can display and publish ActiveRecord models with geographic data.
 
 
-=Getting Started
+==Getting Started
 
 Install the latest version of the plugin:
   ./script/plugin install http://www.sourcepole.ch/svn/plugins/map_layers/trunk
@@ -43,7 +43,7 @@ Add a second layer and some more controls in the controller action:
     page << map.zoom_to_max_extent()
   end
 
-Add the Yahoo! Javascript library to the includes:
+Add the Yahoo Javascript library to the includes:
   <%= map_layers_includes :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ", :yahoo => "euzuro-openlayers" %>
 
 There are many more predefined layer types available:
@@ -53,7 +53,7 @@ To include all Javascript APIs, insert your API keys in the following statement:
   <%= map_layers_includes :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ", :multimap => "metacarta_04", :virtualearth => true, :yahoo => "euzuro-openlayers" %>
 
 
-===Updating the the map
+===Updating the map
 Now we want to add some simple markers in an Ajax action.
 First we add a link in the view:
 
@@ -140,11 +140,11 @@ And add a WFS layer to the map:
 
   page << map.add_layer(Layer::WFS.new("Weather Stations", "/weather_stations/wfs", {:typename => "weather_stations"}, {:featureClass => JsExpr.new("OpenLayers.Feature.WFS")}))
 
-===License
+==License
 The MapLayers plugin for Rails is released under the MIT license.
 
-===Support
-For any questions, enhancement proposals, bug notifications or corrections visit http://rubyforge.org/projects/map-layers/
+==Support
+For any questions, enhancement proposals, bug notifications or corrections visit http://rubyforge.org/projects/map-layers/ or send a mail to pka[at]sourcepole[dot]ch.
 
 
-<em>Copyright (c) 2008 Pirmin Kalberer, Sourcepole AG, released under the MIT license</em>
+<em>Copyright (c) 2008 Pirmin Kalberer, Sourcepole AG</em>

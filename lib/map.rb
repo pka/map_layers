@@ -37,6 +37,7 @@ module MapLayers
     "http://worldwind25.arc.nasa.gov/tile/tile.aspx", 36, 4, {:T => "bmng.topo.bathy.200406"}, {:tileSize => OpenLayers::Size.new(512,512)})
 
 
+  #Map viewer main class
   class Map
     include JsWrapper
         
