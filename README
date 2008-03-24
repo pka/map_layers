@@ -1,6 +1,6 @@
 =MapLayers plugin for Rails
 
-MapLayers makes it easy to integrate a dynamic map in a Rails application. It can display map tiles and markers loaded from any date source.
+MapLayers makes it easy to integrate a dynamic map in a Rails application. It can display map tiles and markers loaded from many different data sources.
 The included map viewer is OpenLayers[http://www.openlayers.org/].
 With MapLayers you can display and publish ActiveRecord models with geographic data.
 
@@ -63,7 +63,7 @@ This requires including the prototype library:
 
   <%= javascript_include_tag 'prototype' %>
 
-Then we include a marker layer in the map. Put this after the add_map_layer statements in the controller:
+Then we include a marker layer in the map. Put this after the add_layer statements in the controller:
 
   page.assign("markers", Layer::Markers.new('Markers'))
   page << map.addLayer(:markers)
