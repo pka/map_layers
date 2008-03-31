@@ -132,7 +132,7 @@ Add a new controller with a map_layer:
 
   class WeatherStationsController < ApplicationController
 
-    map_layer :weater_stations, :geometry => :geom
+    map_layer :weather_stations, :geometry => :geom
 
   end
 
