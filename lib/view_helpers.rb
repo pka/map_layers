@@ -11,7 +11,7 @@ module MapLayers
       options.assert_valid_keys(:google, :multimap, :openstreetmap, :virtualearth, :yahoo)
       html = ''
       if options.has_key?(:google)
-        html << javascript_include_tag("http://maps.google.com/maps?file=api&amp;v=2&amp;key=#{options[:google]}")
+        html << "<script type=\"text/javascript\" src=\"http://maps.google.com/maps?file=api&amp;v=2&amp;key=#{options[:google]}\"></script>"
       end
       if options.has_key?(:multimap)
         html << "<script type=\"text/javascript\" src=\"http://clients.multimap.com/API/maps/1.1/#{options[:multimap]}\"></script>"
