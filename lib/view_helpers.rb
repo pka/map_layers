@@ -17,10 +17,10 @@ module MapLayers
         html << "<script type=\"text/javascript\" src=\"http://clients.multimap.com/API/maps/1.1/#{options[:multimap]}\"></script>"
       end
       if options.has_key?(:virtualearth)
-        html << javascript_include_tag("http://dev.virtualearth.net/mapcontrol/v3/mapcontrol.js")
+        html << "<script type=\"text/javascript\" src=\"http://dev.virtualearth.net/mapcontrol/v3/mapcontrol.js\"></script>"
       end
       if options.has_key?(:yahoo)
-        html << javascript_include_tag("http://api.maps.yahoo.com/ajaxymap?v=3.0&appid=#{options[:yahoo]}")
+        html << "<script type=\"text/javascript\" src=\"http://api.maps.yahoo.com/ajaxymap?v=3.0&appid=#{options[:yahoo]}\"></script>"
       end
       
       if RAILS_ENV == "development" && File.exist?(File.join(RAILS_ROOT, 'public/javascripts/lib/OpenLayers.js'))
@@ -31,8 +31,11 @@ module MapLayers
       end
 
       html << stylesheet_link_tag("map")
-      html << javascript_tag("OpenLayers.ImgPath='/images/OpenLayers/';")
-
+      html << javascript_tag(<<EOS
+OpenLayers.ImgPath='/images/OpenLayers/';
+OpenLayers.ProxyHost='/ws/proxy?url=';
+EOS
+        )
       html
     end
   end
