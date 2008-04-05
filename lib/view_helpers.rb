@@ -7,8 +7,9 @@ module MapLayers
     # * options[:multimap] with MultiMap Key: Include MultiMap
     # * options[:virtualearth]: Include VirtualEarth
     # * options[:yahoo] with Yahoo appid: Include Yahoo! Maps
+    # * options[:proxy] with name of controller with proxy action. Defaults to current controller.
     def map_layers_includes(options = {})
-      options.assert_valid_keys(:google, :multimap, :openstreetmap, :virtualearth, :yahoo)
+      options.assert_valid_keys(:google, :multimap, :openstreetmap, :virtualearth, :yahoo, :proxy)
       html = ''
       if options.has_key?(:google)
         html << "<script type=\"text/javascript\" src=\"http://maps.google.com/maps?file=api&amp;v=2&amp;key=#{options[:google]}\"></script>"
@@ -31,11 +32,10 @@ module MapLayers
       end
 
       html << stylesheet_link_tag("map")
-      html << javascript_tag(<<EOS
-OpenLayers.ImgPath='/images/OpenLayers/';
-OpenLayers.ProxyHost='/ws/proxy?url=';
-EOS
-        )
+      html << javascript_tag("OpenLayers.ImgPath='/images/OpenLayers/';")
+      proxy = options.has_key?(:proxy) ? options[:proxy] : controller.controller_name
+      html << javascript_tag("OpenLayers.ProxyHost='/#{proxy}/proxy?url=';")
+      
       html
     end
   end

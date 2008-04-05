@@ -23,8 +23,11 @@ module MapLayers # :nodoc:
         include MapLayers::KML
         include MapLayers::WFS
         include MapLayers::GeoRSS
+        include MapLayers::Proxy
         include MapLayers::Rest
       end
+
+      session :off, :only => [:kml, :wfs, :georss]
 
     end
 
@@ -83,7 +86,7 @@ module MapLayers # :nodoc:
       render :text => KML_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
-    private
+    protected
 
     KML_FEATURE_LIMIT = 1000
     
@@ -155,7 +158,7 @@ EOS
       render :text => WFS_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
-    private
+    protected
 
     WFS_FEATURE_LIMIT = 1000
     
@@ -241,7 +244,7 @@ EOS
       render :text => GEORSS_EMPTY_RESPONSE, :content_type => "text/xml"
     end
     
-    private
+    protected
 
     GEORSS_FEATURE_LIMIT = 1000
     
@@ -297,6 +300,31 @@ EOS
     
   end
   
+  # Remote http Proxy
+  module Proxy
+    
+    # Register an url, before the proxy is called
+    def register_remote_url(url)
+      session[:proxy_url] ||= []
+      session[:proxy_url] << url      
+    end
+    
+    # Proxy for accessing remote files like GeoRSS, which is not allowed directly from the browser
+    def proxy
+      if session[:proxy_url].nil? || !session[:proxy_url].include?(params["url"])
+        logger.warn "Proxy request not in session: #{params["url"]}"
+        render :nothing => true
+        return
+      end
+      
+      url = URI.parse(URI.encode(params[:url]))
+      logger.debug "Proxy request for #{url.scheme}://#{url.host}#{url.path}"
+      
+      result = Net::HTTP.get_response(url)
+      render :text => result.body, :status => result.code, :content_type => "text/xml"
+    end
+  end
+
   # Restful feture Server methods (http://featureserver.org/)
   module Rest
     
