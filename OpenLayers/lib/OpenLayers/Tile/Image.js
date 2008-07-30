@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Tile.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Tile.Image
  * Instances of OpenLayers.Tile.Image are used to manage the image tiles
  * used by various layers.  Create a new image tile with the
@@ -36,6 +38,13 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
      */ 
     frame: null, 
 
+    
+    /**
+     * Property: layerAlphaHack
+     * {Boolean} True if the png alpha hack needs to be applied on the layer's div.
+     */
+    layerAlphaHack: null,
+
     /** TBD 3.0 - reorder the parameters to the init function to remove 
      *             URL. the getUrl() function on the layer gets called on 
      *             each draw(), so no need to specify it here.
@@ -58,6 +67,8 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         this.frame = document.createElement('div'); 
         this.frame.style.overflow = 'hidden'; 
         this.frame.style.position = 'absolute'; 
+
+        this.layerAlphaHack = this.layer.alpha && OpenLayers.Util.alphaHack();
     },
 
     /** 
@@ -66,7 +77,11 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
      */
     destroy: function() {
         if (this.imgDiv != null)  {
-            OpenLayers.Event.stopObservingElement(this.imgDiv.id);
+            if (this.layerAlphaHack) {
+                OpenLayers.Event.stopObservingElement(this.imgDiv.childNodes[0].id);                
+            } else {
+                OpenLayers.Event.stopObservingElement(this.imgDiv.id);
+            }
             if (this.imgDiv.parentNode == this.frame) {
                 this.frame.removeChild(this.imgDiv);
                 this.imgDiv.map = null;
@@ -81,13 +96,41 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
     },
 
     /**
+     * Method: clone
+     *
+     * Parameters:
+     * obj - {<OpenLayers.Tile.Image>} The tile to be cloned
+     *
+     * Returns:
+     * {<OpenLayers.Tile.Image>} An exact clone of this <OpenLayers.Tile.Image>
+     */
+    clone: function (obj) {
+        if (obj == null) {
+            obj = new OpenLayers.Tile.Image(this.layer, 
+                                            this.position, 
+                                            this.bounds, 
+                                            this.url, 
+                                            this.size);        
+        } 
+        
+        //pick up properties from superclass
+        obj = OpenLayers.Tile.prototype.clone.apply(this, [obj]);
+        
+        //dont want to directly copy the image div
+        obj.imgDiv = null;
+            
+        
+        return obj;
+    },
+    
+    /**
      * Method: draw
      * Check that a tile should be drawn, and draw it.
      * 
      * Returns:
      * {Boolean} Always returns true.
      */
-    draw:function() {
+    draw: function() {
         if (this.layer != this.layer.map.baseLayer && this.layer.reproject) {
             this.bounds = this.getBoundsFromBaseLayer(this.position);
         }
@@ -103,6 +146,15 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
             this.events.triggerEvent("loadstart");
         }
         
+        return this.renderTile();
+    },
+    
+    /**
+     * Method: renderTile
+     * Internal function to actually initialize the image tile,
+     *     position it correctly, and set its url.
+     */
+    renderTile: function() {
         if (this.imgDiv == null) {
             this.initImgDiv();
         }
@@ -115,15 +167,14 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
                                          null, this.position, this.size);   
 
         var imageSize = this.layer.getImageSize(); 
-        if (this.layer.alpha) {
+        if (this.layerAlphaHack) {
             OpenLayers.Util.modifyAlphaImageDiv(this.imgDiv,
                     null, null, imageSize, this.url);
         } else {
-            this.imgDiv.src = this.url;
             OpenLayers.Util.modifyDOMElement(this.imgDiv,
                     null, null, imageSize) ;
+            this.imgDiv.src = this.url;
         }
-        this.drawn = true;
         return true;
     },
 
@@ -133,9 +184,11 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
      *   be reused in a new location.
      */
     clear: function() {
-        OpenLayers.Tile.prototype.clear.apply(this, arguments);
         if(this.imgDiv) {
-            this.imgDiv.style.display = "none";
+            this.hide();
+            if (OpenLayers.Tile.Image.useBlankTile) { 
+                this.imgDiv.src = OpenLayers.Util.getImagesLocation() + "blank.gif";
+            }    
         }
     },
 
@@ -148,7 +201,7 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         var offset = this.layer.imageOffset; 
         var size = this.layer.getImageSize(); 
      
-        if (this.layer.alpha) {
+        if (this.layerAlphaHack) {
             this.imgDiv = OpenLayers.Util.createAlphaImageDiv(null,
                                                            offset,
                                                            size,
@@ -179,6 +232,7 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         OpenLayers.Event.observe( this.imgDiv, "load",
             OpenLayers.Function.bind(this.checkImgURL, this) );
         */
+        this.frame.style.zIndex = this.isBackBuffer ? 0 : 1;
         this.frame.appendChild(this.imgDiv); 
         this.layer.div.appendChild(this.frame); 
 
@@ -205,10 +259,32 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
                 this.isLoading = false; 
                 this.events.triggerEvent("loadend"); 
             }
-        }
-        OpenLayers.Event.observe(this.imgDiv, 'load',
-                                 OpenLayers.Function.bind(onload, this));
+        };
+        
+        if (this.layerAlphaHack) { 
+            OpenLayers.Event.observe(this.imgDiv.childNodes[0], 'load', 
+                                     OpenLayers.Function.bind(onload, this));    
+        } else { 
+            OpenLayers.Event.observe(this.imgDiv, 'load', 
+                                 OpenLayers.Function.bind(onload, this)); 
+        } 
+        
 
+        // Bind a listener to the onerror of the image div so that we
+        // can registere when a tile has finished loading with errors.
+        var onerror = function() {
+
+            // If we have gone through all image reload attempts, it is time
+            // to realize that we are done with this image. Since
+            // OpenLayers.Util.onImageLoadError already has taken care about
+            // the error, we can continue as if the image was loaded
+            // successfully.
+            if (this.imgDiv._attempts > OpenLayers.IMAGE_RELOAD_ATTEMPTS) {
+                onload.call(this);
+            }
+        };
+        OpenLayers.Event.observe(this.imgDiv, "error",
+                                 OpenLayers.Function.bind(onerror, this));
     },
 
     /**
@@ -232,14 +308,112 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         // Sometimes our image will load after it has already been removed
         // from the map, in which case this check is not needed.  
         if (this.layer) {
-            var loaded = this.layer.alpha ? this.imgDiv.firstChild.src : this.imgDiv.src;
+            var loaded = this.layerAlphaHack ? this.imgDiv.firstChild.src : this.imgDiv.src;
             if (!OpenLayers.Util.isEquivalentUrl(loaded, this.url)) {
-                this.imgDiv.style.display = "none";
+                this.hide();
             }
         }
     },
+    
+    /**
+     * Method: startTransition
+     * This method is invoked on tiles that are backBuffers for tiles in the
+     *     grid.  The grid tile is about to be cleared and a new tile source
+     *     loaded.  This is where the transition effect needs to be started
+     *     to provide visual continuity.
+     */
+    startTransition: function() {
+        // backBufferTile has to be valid and ready to use
+        if (!this.backBufferTile || !this.backBufferTile.imgDiv) {
+            return;
+        }
 
-    /** @final @type String */
+        // calculate the ratio of change between the current resolution of the
+        // backBufferTile and the layer.  If several animations happen in a
+        // row, then the backBufferTile will scale itself appropriately for
+        // each request.
+        var ratio = 1;
+        if (this.backBufferTile.resolution) {
+            ratio = this.backBufferTile.resolution / this.layer.getResolution();
+        }
+        
+        // if the ratio is not the same as it was last time (i.e. we are
+        // zooming), then we need to adjust the backBuffer tile
+        if (ratio != this.lastRatio) {
+            if (this.layer.transitionEffect == 'resize') {
+                // In this case, we can just immediately resize the 
+                // backBufferTile.
+                var upperLeft = new OpenLayers.LonLat(
+                    this.backBufferTile.bounds.left, 
+                    this.backBufferTile.bounds.top
+                );
+                var size = new OpenLayers.Size(
+                    this.backBufferTile.size.w * ratio,
+                    this.backBufferTile.size.h * ratio
+                );
+
+                var px = this.layer.map.getLayerPxFromLonLat(upperLeft);
+                OpenLayers.Util.modifyDOMElement(this.backBufferTile.frame, 
+                                                 null, px, size);
+                var imageSize = this.backBufferTile.imageSize;
+                imageSize = new OpenLayers.Size(imageSize.w * ratio, 
+                                                imageSize.h * ratio);
+                var imageOffset = this.backBufferTile.imageOffset;
+                if(imageOffset) {
+                    imageOffset = new OpenLayers.Pixel(
+                        imageOffset.x * ratio, imageOffset.y * ratio
+                    );
+                }
+
+                OpenLayers.Util.modifyDOMElement(
+                    this.backBufferTile.imgDiv, null, imageOffset, imageSize
+                ) ;
+
+                this.backBufferTile.show();
+            }
+        } else {
+            // default effect is just to leave the existing tile
+            // until the new one loads if this is a singleTile and
+            // there was no change in resolution.  Otherwise we
+            // don't bother to show the backBufferTile at all
+            if (this.layer.singleTile) {
+                this.backBufferTile.show();
+            } else {
+                this.backBufferTile.hide();
+            }
+        }
+        this.lastRatio = ratio;
+
+    },
+    
+    /** 
+     * Method: show
+     * Show the tile by showing its frame.
+     */
+    show: function() {
+        this.frame.style.display = '';
+        // Force a reflow on gecko based browsers to actually show the element
+        // before continuing execution.
+        if (OpenLayers.Util.indexOf(this.layer.SUPPORTED_TRANSITIONS, 
+                this.layer.transitionEffect) != -1) {
+            if (navigator.userAgent.toLowerCase().indexOf("gecko") != -1) { 
+                this.frame.scrollLeft = this.frame.scrollLeft; 
+            } 
+        }
+    },
+    
+    /** 
+     * Method: hide
+     * Hide the tile by hiding its frame.
+     */
+    hide: function() {
+        this.frame.style.display = 'none';
+    },
+    
     CLASS_NAME: "OpenLayers.Tile.Image"
   }
 );
+
+OpenLayers.Tile.Image.useBlankTile = ( 
+    OpenLayers.Util.getBrowserName() == "safari" || 
+    OpenLayers.Util.getBrowserName() == "opera"); 

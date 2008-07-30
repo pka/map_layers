@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Handler.js
  * @requires OpenLayers/Geometry/Point.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Handler.Point
  * Handler to draw a point on the map.  Point is displayed on mouse down,
  * moves on mouse move, and is finished on mouse up.  The handler triggers
@@ -60,7 +62,7 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      *
      * Parameters:
      * control - {<OpenLayers.Control>} The control that owns this handler
-     * callbacks - {Object} An object with a 'done' property whos value is a
+     * callbacks - {Object} An object with a 'done' property whose value is a
      *             function to be called when the point drawing is finished.
      *             The callback should expect to recieve a single argument,
      *             the point geometry.  If the callbacks object contains a
@@ -87,7 +89,14 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
         }
         // create temporary vector layer for rendering geometry sketch
         // TBD: this could be moved to initialize/destroy - setting visibility here
-        var options = {displayInLayerSwitcher: false};
+        var options = {
+            displayInLayerSwitcher: false,
+            // indicate that the temp vector layer will never be out of range
+            // without this, resolution properties must be specified at the
+            // map-level for this temporary layer to init its resolutions
+            // correctly
+            calculateInRange: function() { return true; }
+        };
         this.layer = new OpenLayers.Layer.Vector(this.CLASS_NAME, options);
         this.map.addLayer(this.layer);
         return true;
@@ -114,8 +123,14 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
         if(this.drawing) {
             this.cancel();
         }
-        this.map.removeLayer(this.layer, false);
-        this.layer.destroy();
+        // If a layer's map property is set to null, it means that that layer
+        // isn't added to the map. Since we ourself added the layer to the map
+        // in activate(), we can assume that if this.layer.map is null it means
+        // that the layer has been destroyed (as a result of map.destroy() for
+        // example.
+        if (this.layer.map != null) {
+            this.layer.destroy(false);
+        }
         this.layer = null;
         return true;
     },
@@ -125,7 +140,9 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      * Destroy the temporary geometries
      */
     destroyFeature: function() {
-        this.point.destroy();
+        if(this.point) {
+            this.point.destroy();
+        }
         this.point = null;
     },
 
@@ -135,12 +152,12 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      */
     finalize: function() {
         this.layer.renderer.clear();
-        this.callback("done", [this.geometryClone()]);
-        this.destroyFeature();
         this.drawing = false;
         this.mouseDown = false;
         this.lastDown = null;
         this.lastUp = null;
+        this.callback("done", [this.geometryClone()]);
+        this.destroyFeature();
     },
 
     /**
@@ -149,17 +166,34 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      */
     cancel: function() {
         this.layer.renderer.clear();
-        this.callback("cancel", [this.geometryClone()]);
-        this.destroyFeature();
         this.drawing = false;
         this.mouseDown = false;
         this.lastDown = null;
         this.lastUp = null;
+        this.callback("cancel", [this.geometryClone()]);
+        this.destroyFeature();
+    },
+
+    /**
+     * Method: click
+     * Handle clicks.  Clicks are stopped from propagating to other listeners
+     *     on map.events or other dom elements.
+     * 
+     * Parameters:
+     * evt - {Event} The browser event
+     *
+     * Returns: 
+     * {Boolean} Allow event propagation
+     */
+    click: function(evt) {
+        OpenLayers.Event.stop(evt);
+        return false;
     },
 
     /**
      * Method: dblclick
-     * Handle double clicks.
+     * Handle double-clicks.  Double-clicks are stopped from propagating to other
+     *     listeners on map.events or other dom elements.
      * 
      * Parameters:
      * evt - {Event} The browser event

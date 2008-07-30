@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Control.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Control.MouseDefaults
  *
  * Inherits from:
@@ -45,12 +47,15 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
         }
         this.handler = null;
 
-        this.map.events.unregister( "click", this, this.defaultClick );
-        this.map.events.unregister( "dblclick", this, this.defaultDblClick );
-        this.map.events.unregister( "mousedown", this, this.defaultMouseDown );
-        this.map.events.unregister( "mouseup", this, this.defaultMouseUp );
-        this.map.events.unregister( "mousemove", this, this.defaultMouseMove );
-        this.map.events.unregister( "mouseout", this, this.defaultMouseOut );
+        this.map.events.un({
+            "click": this.defaultClick,
+            "dblclick": this.defaultDblClick,
+            "mousedown": this.defaultMouseDown,
+            "mouseup": this.defaultMouseUp,
+            "mousemove": this.defaultMouseMove,
+            "mouseout": this.defaultMouseOut,
+            scope: this
+        });
 
         //unregister mousewheel events specifically on the window and document
         OpenLayers.Event.stopObserving(window, "DOMMouseScroll", 
@@ -68,12 +73,15 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
      * Method: draw
      */
     draw: function() {
-        this.map.events.register( "click", this, this.defaultClick );
-        this.map.events.register( "dblclick", this, this.defaultDblClick );
-        this.map.events.register( "mousedown", this, this.defaultMouseDown );
-        this.map.events.register( "mouseup", this, this.defaultMouseUp );
-        this.map.events.register( "mousemove", this, this.defaultMouseMove );
-        this.map.events.register( "mouseout", this, this.defaultMouseOut );
+        this.map.events.on({
+            "click": this.defaultClick,
+            "dblclick": this.defaultDblClick,
+            "mousedown": this.defaultMouseDown,
+            "mouseup": this.defaultMouseUp,
+            "mousemove": this.defaultMouseMove,
+            "mouseout": this.defaultMouseOut,
+            scope: this
+        });
 
         this.registerWheelEvents();
 
@@ -104,7 +112,9 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
      * {Boolean}
      */
     defaultClick: function (evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         var notAfterDrag = !this.performedDrag;
         this.performedDrag = false;
         return notAfterDrag;
@@ -130,7 +140,9 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
      * evt - {Event} 
      */
     defaultMouseDown: function (evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         this.mouseDragStart = evt.xy.clone();
         this.performedDrag  = false;
         if (evt.shiftKey) {
@@ -148,7 +160,7 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
             this.zoomBox.style.zIndex = this.map.Z_INDEX_BASE["Popup"] - 1;
             this.map.viewPortDiv.appendChild(this.zoomBox);
         }
-        document.onselectstart=function() { return false; }
+        document.onselectstart=function() { return false; };
         OpenLayers.Event.stop(evt);
     },
 
@@ -196,7 +208,9 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
      * evt - {<OpenLayers.Event>} 
      */
     defaultMouseUp: function (evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         if (this.zoomBox) {
             this.zoomBoxEnd(evt);    
         } else {
@@ -319,7 +333,7 @@ OpenLayers.Control.MouseDefaults = OpenLayers.Class(OpenLayers.Control, {
             }
             if (e.wheelDelta) {
                 delta = e.wheelDelta/120; 
-                if (window.opera) {
+                if (window.opera && window.opera.version() < 9.2) {
                     delta = -delta;
                 }
             } else if (e.detail) {

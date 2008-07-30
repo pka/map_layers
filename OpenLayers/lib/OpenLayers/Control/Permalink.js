@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Control.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.Permalink
  * 
  * Inherits from:
@@ -24,6 +26,18 @@ OpenLayers.Control.Permalink = OpenLayers.Class(OpenLayers.Control, {
      * {String}
      */
     base: '',
+
+    /** 
+     * APIProperty: displayProjection
+     * {<OpenLayers.Projection>} Requires proj4js support.  Projection used
+     *     when creating the coordinates in the link. This will reproject the
+     *     map coordinates into display coordinates. If you are using this
+     *     functionality, the permalink which is last added to the map will
+     *     determine the coordinate type which is read from the URL, which
+     *     means you should not add permalinks with different
+     *     displayProjections to the same map. 
+     */
+    displayProjection: null, 
 
     /**
      * Constructor: OpenLayers.Control.Permalink
@@ -67,11 +81,20 @@ OpenLayers.Control.Permalink = OpenLayers.Class(OpenLayers.Control, {
         for(var i=0; i< this.map.controls.length; i++) {
             var control = this.map.controls[i];
             if (control.CLASS_NAME == "OpenLayers.Control.ArgParser") {
+                
+                // If a permalink is added to the map, and an ArgParser already
+                // exists, we override the displayProjection to be the one
+                // on the permalink. 
+                if (control.displayProjection != this.displayProjection) {
+                    this.displayProjection = control.displayProjection;
+                }    
+                
                 break;
             }
         }
         if (i == this.map.controls.length) {
-            this.map.addControl(new OpenLayers.Control.ArgParser());       
+            this.map.addControl(new OpenLayers.Control.ArgParser(
+                { 'displayProjection': this.displayProjection }));       
         }
 
     },
@@ -86,16 +109,17 @@ OpenLayers.Control.Permalink = OpenLayers.Class(OpenLayers.Control, {
         OpenLayers.Control.prototype.draw.apply(this, arguments);
           
         if (!this.element) {
-            this.div.className = this.displayClass;
             this.element = document.createElement("a");
-            this.element.style.fontSize="smaller";
-            this.element.innerHTML = "Permalink";
+            this.element.innerHTML = OpenLayers.i18n("permalink");
             this.element.href="";
             this.div.appendChild(this.element);
         }
-        this.map.events.register('moveend', this, this.updateLink);
-        this.map.events.register('changelayer', this, this.updateLink);
-        this.map.events.register('changebaselayer', this, this.updateLink);
+        this.map.events.on({
+            'moveend': this.updateLink,
+            'changelayer': this.updateLink,
+            'changebaselayer': this.updateLink,
+            scope: this
+        });
         return this.div;
     },
    
@@ -113,9 +137,20 @@ OpenLayers.Control.Permalink = OpenLayers.Class(OpenLayers.Control, {
         var params = OpenLayers.Util.getParameters(this.base);
         
         params.zoom = this.map.getZoom(); 
-        params.lat = Math.round(center.lat*100000)/100000;
-        params.lon = Math.round(center.lon*100000)/100000;
-
+        var lat = center.lat;
+        var lon = center.lon;
+        
+        if (this.displayProjection) {
+            var mapPosition = OpenLayers.Projection.transform(
+              { x: lon, y: lat }, 
+              this.map.getProjectionObject(), 
+              this.displayProjection );
+            lon = mapPosition.x;  
+            lat = mapPosition.y;  
+        }       
+        params.lat = Math.round(lat*100000)/100000;
+        params.lon = Math.round(lon*100000)/100000;
+        
         params.layers = '';
         for(var i=0; i< this.map.layers.length; i++) {
             var layer = this.map.layers[i];

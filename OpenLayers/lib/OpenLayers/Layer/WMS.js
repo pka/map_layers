@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer/Grid.js
  * @requires OpenLayers/Tile/Image.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.WMS
  * Instances of OpenLayers.Layer.WMS are used to display data from OGC Web
  *     Mapping Services. Create a new WMS layer with the <OpenLayers.Layer.WMS>
@@ -31,7 +33,7 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
     
     /**
      * Property: reproject
-     * *Deprecated*. See http://trac.openlayers.org/wiki/SpatialMercator
+     * *Deprecated*. See http://trac.openlayers.org/wiki/SphericalMercator
      * for information on the replacement for this functionality. 
      * {Boolean} Try to reproject this layer if its coordinate reference system
      *           is different than that of the base layer.  Default is true.  
@@ -154,10 +156,13 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
         bounds = this.adjustBounds(bounds);
         
         var imageSize = this.getImageSize(); 
-        return this.getFullRequestString(
-                     {BBOX: this.encodeBBOX ?  bounds.toBBOX() : bounds.toArray(),
-                      WIDTH:imageSize.w,
-                      HEIGHT:imageSize.h});
+        var newParams = {
+            'BBOX': this.encodeBBOX ?  bounds.toBBOX() : bounds.toArray(),
+            'WIDTH': imageSize.w,
+            'HEIGHT': imageSize.h
+        };
+        var requestString = this.getFullRequestString(newParams);
+        return requestString;
     },
 
     /**
@@ -166,6 +171,7 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
      *
      * Parameters:
      * bounds - {<OpenLayers.Bounds>}
+     * position - {<OpenLayers.Pixel>}
      * 
      * Returns:
      * {<OpenLayers.Tile.Image>} The added OpenLayers.Tile.Image
@@ -188,7 +194,7 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
     mergeNewParams:function(newParams) {
         var upperParams = OpenLayers.Util.upperCaseObject(newParams);
         var newArguments = [upperParams];
-        OpenLayers.Layer.Grid.prototype.mergeNewParams.apply(this, 
+        return OpenLayers.Layer.Grid.prototype.mergeNewParams.apply(this, 
                                                              newArguments);
     },
 
@@ -202,13 +208,14 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
      *
      * Parameters:
      * newParams - {Object}
+     * altUrl - {String} Use this as the url instead of the layer's url
      * 
      * Returns:
      * {String} 
      */
-    getFullRequestString:function(newParams) {
-        var projection = this.map.getProjection();
-        this.params.SRS = (projection == "none") ? null : projection;
+    getFullRequestString:function(newParams, altUrl) {
+        var projectionCode = this.map.getProjection();
+        this.params.SRS = (projectionCode == "none") ? null : projectionCode;
 
         return OpenLayers.Layer.Grid.prototype.getFullRequestString.apply(
                                                     this, arguments);

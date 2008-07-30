@@ -1,12 +1,15 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Layer.js
  * @requires OpenLayers/Renderer.js
+ * @requires OpenLayers/StyleMap.js
  * @requires OpenLayers/Feature/Vector.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.Vector
  * Instances of OpenLayers.Layer.Vector are used to render vector data from
  * a variety of sources. Create a new image layer with the
@@ -16,6 +19,51 @@
  *  - <OpenLayers.Layer>
  */
 OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
+
+    /**
+     * Constant: EVENT_TYPES
+     * {Array(String)} Supported application event types.  Register a listener
+     *     for a particular event with the following syntax:
+     * (code)
+     * layer.events.register(type, obj, listener);
+     * (end)
+     *
+     * Listeners will be called with a reference to an event object.  The
+     *     properties of this event depends on exactly what happened.
+     *
+     * All event objects have at least the following properties:
+     *  - *object* {Object} A reference to layer.events.object.
+     *  - *element* {DOMElement} A reference to layer.events.element.
+     *
+     * Supported map event types (in addition to those from <OpenLayers.Layer>):
+     *  - *beforefeatureadded* Triggered before a feature is added.  Listeners
+     *      will receive an object with a *feature* property referencing the
+     *      feature to be added.
+     *  - *featureadded* Triggered after a feature is added.  The event
+     *      object passed to listeners will have a *feature* property with a
+     *      reference to the added feature.
+     *  - *featuresadded* Triggered after features are added.  The event
+     *      object passed to listeners will have a *features* property with a
+     *      reference to an array of added features.
+     *  - *featureselected* Triggered after a feature is selected.  Listeners
+     *      will receive an object with a *feature* property referencing the
+     *      selected feature.
+     *  - *featureunselected* Triggered after a feature is unselected.
+     *      Listeners will receive an object with a *feature* property
+     *      referencing the unselected feature.
+     *  - *beforefeaturemodified* Triggered when a feature is selected to 
+     *      be modified.  Listeners will receive an object with a *feature* 
+     *      property referencing the selected feature.
+     *  - *featuremodified* Triggered when a feature has been modified.
+     *      Listeners will receive an object with a *feature* property referencing 
+     *      the modified feature.
+     *  - *afterfeaturemodified* Triggered when a feature is finished being modified.
+     *      Listeners will receive an object with a *feature* property referencing 
+     *      the modified feature.
+     */
+    EVENT_TYPES: ["beforefeatureadded", "featureadded",
+                  "featuresadded", "featureselected", "featureunselected", 
+                  "beforefeaturemodified", "featuremodified", "afterfeaturemodified"],
 
     /**
      * APIProperty: isBaseLayer
@@ -39,13 +87,13 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
 
     /** 
      * APIProperty: features
-     * Array({<OpenLayers.Feature.Vector>}) 
+     * {Array(<OpenLayers.Feature.Vector>)} 
      */
     features: null,
     
     /** 
      * Property: selectedFeatures
-     * Array({<OpenLayers.Feature.Vector>}) 
+     * {Array(<OpenLayers.Feature.Vector>)} 
      */
     selectedFeatures: null,
 
@@ -61,10 +109,16 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      * {Object} Default style for the layer
      */
     style: null,
+    
+    /**
+     * Property: styleMap
+     * {<OpenLayers.StyleMap>}
+     */
+    styleMap: null,
 
     /**
      * Property: renderers
-     * Array({String}) List of supported Renderer classes. Add to this list to
+     * {Array(String)} List of supported Renderer classes. Add to this list to
      * add support for additional renderers. This list is ordered:
      * the first renderer which returns true for the  'supported()'
      * method will be used, if not defined in the 'renderer' option.
@@ -104,9 +158,12 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      * {<OpenLayers.Layer.Vector>} A new vector layer
      */
     initialize: function(name, options) {
-
-        var defaultStyle = OpenLayers.Feature.Vector.style['default'];
-        this.style = OpenLayers.Util.extend({}, defaultStyle);
+        
+        // concatenate events specific to vector with those from the base
+        this.EVENT_TYPES =
+            OpenLayers.Layer.Vector.prototype.EVENT_TYPES.concat(
+            OpenLayers.Layer.prototype.EVENT_TYPES
+        );
 
         OpenLayers.Layer.prototype.initialize.apply(this, arguments);
 
@@ -120,6 +177,10 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
             this.renderer = null;
             this.displayError();
         } 
+
+        if (!this.styleMap) {
+            this.styleMap = new OpenLayers.StyleMap();
+        }
 
         this.features = [];
         this.selectedFeatures = [];
@@ -164,10 +225,8 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      */
     displayError: function() {
         if (this.reportError) {
-            var message = "Your browser does not support vector rendering. " + 
-                            "Currently supported renderers are:\n";
-            message += this.renderers.join("\n");
-            alert(message);
+            alert(OpenLayers.i18n("browserNotSupported", 
+                                     {'renderers':this.renderers.join("\n")}));
         }    
     },
 
@@ -219,14 +278,22 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      */
     moveTo: function(bounds, zoomChanged, dragging) {
         OpenLayers.Layer.prototype.moveTo.apply(this, arguments);
-        
+
         if (!dragging) {
-            this.div.style.left = - parseInt(this.map.layerContainerDiv.style.left) + "px";
-            this.div.style.top = - parseInt(this.map.layerContainerDiv.style.top) + "px";
+            this.renderer.root.style.visibility = "hidden";
+            // force a reflow on gecko based browsers to actually hide the svg
+            if (navigator.userAgent.toLowerCase().indexOf("gecko") != -1) {
+                this.div.scrollLeft = this.div.scrollLeft;
+            }
+            
+            this.div.style.left = -parseInt(this.map.layerContainerDiv.style.left) + "px";
+            this.div.style.top = -parseInt(this.map.layerContainerDiv.style.top) + "px";
             var extent = this.map.getExtent();
             this.renderer.setExtent(extent);
+            
+            this.renderer.root.style.visibility = "visible";
         }
-
+        
         if (!this.drawn || zoomChanged) {
             this.drawn = true;
             for(var i = 0; i < this.features.length; i++) {
@@ -242,38 +309,55 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      *
      * Parameters:
      * features - {Array(<OpenLayers.Feature.Vector>)} 
+     * options - {Object}
      */
-    addFeatures: function(features) {
+    addFeatures: function(features, options) {
         if (!(features instanceof Array)) {
             features = [features];
         }
+        
+        var notify = !options || !options.silent;
 
         for (var i = 0; i < features.length; i++) {
             var feature = features[i];
             
             if (this.geometryType &&
-                !(feature.geometry instanceof this.geometryType)) {
-                    var throwStr = "addFeatures : component should be an " + 
-                                    this.geometryType.prototype.CLASS_NAME;
-                    throw throwStr;
-                }
+              !(feature.geometry instanceof this.geometryType)) {
+                var throwStr = OpenLayers.i18n('componentShouldBe',
+                          {'geomType':this.geometryType.prototype.CLASS_NAME});
+                throw throwStr;
+              }
 
             this.features.push(feature);
             
             //give feature reference to its layer
             feature.layer = this;
 
-            if (!feature.style) {
+            if (!feature.style && this.style) {
                 feature.style = OpenLayers.Util.extend({}, this.style);
             }
 
-            this.preFeatureInsert(feature);
+            if (notify) {
+                this.events.triggerEvent("beforefeatureadded", {
+                    feature: feature
+                });
+                this.preFeatureInsert(feature);
+            }
 
             if (this.drawn) {
                 this.drawFeature(feature);
             }
             
-            this.onFeatureInsert(feature);
+            if (notify) {
+                this.events.triggerEvent("featureadded", {
+                    feature: feature
+                });
+                this.onFeatureInsert(feature);
+            }
+        }
+        
+        if(notify) {
+            this.events.triggerEvent("featuresadded", {features: features});
         }
     },
 
@@ -307,17 +391,32 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
 
     /**
      * APIMethod: destroyFeatures
-     * Destroy all features on the layer and empty the selected features array.
+     * Erase and destroy features on the layer.
+     *
+     * Parameters:
+     * features - {Array(<OpenLayers.Feature.Vector>)} An optional array of
+     *     features to destroy.  If not supplied, all features on the layer
+     *     will be destroyed.
      */
-    destroyFeatures: function () {
-        this.selectedFeatures = [];
-        for (var i = this.features.length - 1; i >= 0; i--) {
-            this.features[i].destroy();
+    destroyFeatures: function(features) {
+        var all = (features == undefined);
+        if(all) {
+            features = this.features;
+            this.selectedFeatures = [];
+        }
+        this.eraseFeatures(features);
+        var feature;
+        for(var i=features.length-1; i>=0; i--) {
+            feature = features[i];
+            if(!all) {
+                OpenLayers.Util.removeItem(this.selectedFeatures, feature);
+            }
+            feature.destroy();
         }
     },
 
     /**
-     * Method: drawFeature
+     * APIMethod: drawFeature
      * Draw (or redraw) a feature on the layer.  If the optional style argument
      * is included, this style will be used.  If no style is included, the
      * feature's style will be used.  If the feature doesn't have a style,
@@ -325,16 +424,18 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      * 
      * Parameters: 
      * feature - {<OpenLayers.Feature.Vector>} 
-     * style - {Object} 
+     * style - {Object} Symbolizer hash or {String} renderIntent
      */
     drawFeature: function(feature, style) {
-        if(style == null) {
-            if(feature.style) {
-                style = feature.style;
-            } else {
-                style = this.style;
+        if (typeof style != "object") {
+            var renderIntent = typeof style == "string" ?
+                style : feature.renderIntent;
+            style = feature.style || this.style;
+            if (!style) {
+                style = this.styleMap.createSymbolizer(feature, renderIntent);
             }
         }
+        
         this.renderer.drawFeature(feature, style);
     },
     
@@ -362,7 +463,7 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      */
     getFeatureFromEvent: function(evt) {
         if (!this.renderer) {
-            OpenLayers.Console.error("getFeatureFromEvent called on layer with no renderer. This usually means you destroyed a layer, but not some handler which is associated with it."); 
+            OpenLayers.Console.error(OpenLayers.i18n("getFeatureError")); 
             return null;
         }    
         var featureId = this.renderer.getFeatureIdFromEvent(evt);

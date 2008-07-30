@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
  
 /**
  * @requires OpenLayers/Layer.js
  * @requires OpenLayers/Tile/Image.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.Image
  * Instances of OpenLayers.Layer.Image are used to display data from a web
  * accessible image as a map layer.  Create a new image layer with the

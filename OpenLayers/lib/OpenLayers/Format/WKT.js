@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Format.js
  * @requires OpenLayers/Feature/Vector.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Format.WKT
  * Class for reading and writing Well-Known Text.  Create a new instance
  * with the <OpenLayers.Format.WKT> constructor.
@@ -60,7 +62,20 @@ OpenLayers.Format.WKT = OpenLayers.Class(OpenLayers.Format, {
             if(this.parse[type]) {
                 features = this.parse[type].apply(this, [str]);
             }
-        }
+            if (this.internalProjection && this.externalProjection) {
+                if (features && 
+                    features.CLASS_NAME == "OpenLayers.Feature.Vector") {
+                    features.geometry.transform(this.externalProjection,
+                                                this.internalProjection);
+                } else if (features && typeof features == "object") {
+                    for (var i = 0; i < features.length; i++) {
+                        var component = features[i];
+                        component.geometry.transform(this.externalProjection,
+                                                     this.internalProjection);
+                    }
+                }
+            }
+        }    
         return features;
     },
 
@@ -97,6 +112,11 @@ OpenLayers.Format.WKT = OpenLayers.Class(OpenLayers.Format, {
             if(!this.extract[type]) {
                 return null;
             }
+            if (this.internalProjection && this.externalProjection) {
+                geometry = geometry.clone();
+                geometry.transform(this.internalProjection, 
+                                   this.externalProjection);
+            }                       
             data = this.extract[type].apply(this, [geometry]);
             pieces.push(type.toUpperCase() + '(' + data + ')');
         }
@@ -281,7 +301,7 @@ OpenLayers.Format.WKT = OpenLayers.Class(OpenLayers.Format, {
             for(var i=0; i<rings.length; ++i) {
                 ring = rings[i].replace(this.regExes.trimParens, '$1');
                 linestring = this.parse.linestring.apply(this, [ring]).geometry;
-                linearring = new OpenLayers.Geometry.LinearRing(linestring.components)
+                linearring = new OpenLayers.Geometry.LinearRing(linestring.components);
                 components.push(linearring);
             }
             return new OpenLayers.Feature.Vector(

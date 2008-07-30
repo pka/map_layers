@@ -1,14 +1,19 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD licence.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * licence.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer/Grid.js
- *
+ */
+
+/**
  * Class: OpenLayers.Layer.TileCache
  * A read only TileCache layer.  Used to requests tiles cached by TileCache in
- *     a web accessible cache.  Create a new instance with the
+ *     a web accessible cache.  This means that you have to pre-populate your
+ *     cache before this layer can be used.  It is meant only to read tiles
+ *     created by TileCache, and not to make calls to TileCache for tile
+ *     creation.  Create a new instance with the
  *     <OpenLayers.Layer.TileCache> constructor.
  *
  * Inherits from:
@@ -28,7 +33,7 @@ OpenLayers.Layer.TileCache = OpenLayers.Class(OpenLayers.Layer.Grid, {
      *     bottom left of the maxExtent.
      */
     tileOrigin: null,
-    
+
     /** 
      * APIProperty: format
      * {String} Mime type of the images returned.  Default is image/png.
@@ -41,18 +46,22 @@ OpenLayers.Layer.TileCache = OpenLayers.Class(OpenLayers.Layer.Grid, {
      *
      * Parameters:
      * name - {String} Name of the layer displayed in the interface
-     * url - {String} Location of the web accessible cache
+     * url - {String} Location of the web accessible cache (not the location of
+     *     your tilecache script!)
      * layername - {String} Layer name as defined in the TileCache 
      *     configuration
-     * options - {Object} Hashtable of extra options to tag onto the layer
+     * options - {Object} Optional object with properties to be set on the
+     *     layer.  Note that you should speficy your resolutions to match
+     *     your TileCache configuration.  This can be done by setting
+     *     the resolutions array directly (here or on the map), by setting
+     *     maxResolution and numZoomLevels, or by using scale based properties.
      */
     initialize: function(name, url, layername, options) {
-        options = OpenLayers.Util.extend({maxResolution: 180/256}, options);
         this.layername = layername;
         OpenLayers.Layer.Grid.prototype.initialize.apply(this,
                                                          [name, url, {}, options]);
         this.extension = this.format.split('/')[1].toLowerCase();
-        this.extension = (this.extension == 'jpeg') ? 'jpg' : this.extension;
+        this.extension = (this.extension == 'jpg') ? 'jpeg' : this.extension;
     },    
 
     /**
@@ -67,8 +76,9 @@ OpenLayers.Layer.TileCache = OpenLayers.Class(OpenLayers.Layer.Grid, {
         
         if (obj == null) {
             obj = new OpenLayers.Layer.TileCache(this.name,
-                                           this.url,
-                                           this.options);
+                                                 this.url,
+                                                 this.layername,
+                                                 this.options);
         }
 
         //get all additions from superclasses
@@ -93,8 +103,8 @@ OpenLayers.Layer.TileCache = OpenLayers.Class(OpenLayers.Layer.Grid, {
         var res = this.map.getResolution();
         var bbox = this.maxExtent;
         var size = this.tileSize;
-        var tileX = Math.floor((bounds.left - bbox.left) / (res * size.w));
-        var tileY = Math.floor((bounds.bottom - bbox.bottom) / (res * size.h));
+        var tileX = Math.round((bounds.left - bbox.left) / (res * size.w));
+        var tileY = Math.round((bounds.bottom - bbox.bottom) / (res * size.h));
         var tileZ = this.map.zoom;
         /**
          * Zero-pad a positive integer.
@@ -137,6 +147,7 @@ OpenLayers.Layer.TileCache = OpenLayers.Class(OpenLayers.Layer.Grid, {
      *
      * Parameters: 
      * bounds - {<OpenLayers.Bounds>} 
+     * position - {<OpenLayers.Pixel>}
      *
      * Returns:
      * {<OpenLayers.Tile.Image>} The added <OpenLayers.Tile.Image>

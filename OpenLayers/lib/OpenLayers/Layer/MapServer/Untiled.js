@@ -1,14 +1,16 @@
-/* Copyright 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright 2006-2008 MetaCarta, Inc., published under the Clear BSD license.
+ * See http://svn.openlayers.org/trunk/openlayers/license.txt for the full text
+ * of the license. */
 
  
 /**
  * @requires OpenLayers/Layer/MapServer.js
- *
+ */
+
+/**
  * Class: OpenLayers.Layer.MapServer.Untiled
- * Deprecated, to be removed in 3.0 - instead use OpenLayers.Layer.MapServer and 
- *     pass the option 'singleTile' as true.
+ * *Deprecated*.  To be removed in 3.0.  Instead use OpenLayers.Layer.MapServer
+ *     and pass the option 'singleTile' as true.
  * 
  * Inherits from: 
  *  - <OpenLayers.Layer.MapServer>

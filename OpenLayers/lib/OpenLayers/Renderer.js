@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * Class: OpenLayers.Renderer 
@@ -141,7 +141,9 @@ OpenLayers.Renderer = OpenLayers.Class({
         if(style == null) {
             style = feature.style;
         }
-        this.drawGeometry(feature.geometry, style, feature.id);
+        if (feature.geometry) {
+            this.drawGeometry(feature.geometry, style, feature.id);
+        }
     },
 
 

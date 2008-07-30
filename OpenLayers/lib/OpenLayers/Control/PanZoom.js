@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Control.js
- *
- * Class: OpenLayers.PanZoom
+ */
+
+/**
+ * Class: OpenLayers.Control.PanZoom
  * 
  * Inherits from:
  *  - <OpenLayers.Control>
@@ -15,7 +17,8 @@ OpenLayers.Control.PanZoom = OpenLayers.Class(OpenLayers.Control, {
 
     /** 
      * APIProperty: slideFactor
-     * {Integer}
+     * {Integer} Number of pixels by which we'll pan the map in any direction 
+     *     on clicking the arrow buttons. 
      */
     slideFactor: 50,
 
@@ -150,20 +153,22 @@ OpenLayers.Control.PanZoom = OpenLayers.Class(OpenLayers.Control, {
      * evt - {Event} 
      */
     buttonDown: function (evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
 
         switch (this.action) {
             case "panup": 
-                this.map.pan(0, -50);
+                this.map.pan(0, -this.slideFactor);
                 break;
             case "pandown": 
-                this.map.pan(0, 50);
+                this.map.pan(0, this.slideFactor);
                 break;
             case "panleft": 
-                this.map.pan(-50, 0);
+                this.map.pan(-this.slideFactor, 0);
                 break;
             case "panright": 
-                this.map.pan(50, 0);
+                this.map.pan(this.slideFactor, 0);
                 break;
             case "zoomin": 
                 this.map.zoomIn(); 

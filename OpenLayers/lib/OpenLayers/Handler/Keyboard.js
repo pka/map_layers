@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Handler.js
  * @requires OpenLayers/Events.js
- *
+ */
+
+/**
  * Class: OpenLayers.handler.Keyboard
  * A handler for keyboard events.  Create a new instance with the
  *     <OpenLayers.Handler.Keyboard> constructor.

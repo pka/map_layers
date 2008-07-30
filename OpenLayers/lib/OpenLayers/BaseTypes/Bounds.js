@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * Class: OpenLayers.Bounds
@@ -18,25 +18,25 @@ OpenLayers.Bounds = OpenLayers.Class({
 
     /**
      * Property: left
-     * {Number}
+     * {Number} Minimum horizontal coordinate.
      */
     left: null,
 
     /**
      * Property: bottom
-     * {Number}
+     * {Number} Minimum vertical coordinate.
      */
     bottom: null,
 
     /**
      * Property: right
-     * {Number}
+     * {Number} Maximum horizontal coordinate.
      */
     right: null,
 
     /**
      * Property: top
-     * {Number}
+     * {Number} Maximum vertical coordinate.
      */
     top: null,    
 
@@ -149,6 +149,25 @@ OpenLayers.Bounds = OpenLayers.Class({
     },
     
     /**
+     * APIMethod: toGeometry
+     * Create a new polygon geometry based on this bounds.
+     *
+     * Returns:
+     * {<OpenLayers.Geometry.Polygon>} A new polygon with the coordinates
+     *     of this bounds.
+     */
+    toGeometry: function() {
+        return new OpenLayers.Geometry.Polygon([
+            new OpenLayers.Geometry.LinearRing([
+                new OpenLayers.Geometry.Point(this.left, this.bottom),
+                new OpenLayers.Geometry.Point(this.right, this.bottom),
+                new OpenLayers.Geometry.Point(this.right, this.top),
+                new OpenLayers.Geometry.Point(this.left, this.top)
+            ])
+        ]);
+    },
+    
+    /**
      * APIMethod: getWidth
      * 
      * Returns:
@@ -213,7 +232,7 @@ OpenLayers.Bounds = OpenLayers.Class({
      */
     add:function(x, y) {
         if ( (x == null) || (y == null) ) {
-            var msg = "You must pass both x and y values to the add function.";
+            var msg = OpenLayers.i18n("boundsAddError");
             OpenLayers.Console.error(msg);
             return null;
         }
@@ -330,7 +349,7 @@ OpenLayers.Bounds = OpenLayers.Class({
      * 
      * Parameters:
      * bounds - {<OpenLayers.Bounds>}
-     * inclusive - {<Boolean>} Whether or not to include the border.  Default
+     * inclusive - {Boolean} Whether or not to include the border.  Default
      *     is true.
      *
      * Returns:
@@ -365,10 +384,10 @@ OpenLayers.Bounds = OpenLayers.Class({
      * APIMethod: containsBounds
      * 
      * bounds - {<OpenLayers.Bounds>}
-     * partial - {<Boolean>} If true, only part of passed-in bounds needs be
+     * partial - {Boolean} If true, only part of passed-in bounds needs be
      *     within this bounds.  If false, the entire passed-in bounds must be
      *     within. Default is false
-     * inclusive - {<Boolean>} Whether or not to include the border. Default is
+     * inclusive - {Boolean} Whether or not to include the border. Default is
      *     true.
      *
      * Returns:
@@ -424,6 +443,33 @@ OpenLayers.Bounds = OpenLayers.Class({
         quadrant += (lonlat.lon < center.lon) ? "l" : "r";
     
         return quadrant; 
+    },
+    
+    /**
+     * APIMethod: transform
+     * Transform the Bounds object from source to dest. 
+     *
+     * Parameters: 
+     * source - {<OpenLayers.Projection>} Source projection. 
+     * dest   - {<OpenLayers.Projection>} Destination projection. 
+     *
+     * Returns:
+     * {<OpenLayers.Bounds>} Itself, for use in chaining operations.
+     */
+    transform: function(source, dest) {
+        var ll = OpenLayers.Projection.transform(
+            {'x': this.left, 'y': this.bottom}, source, dest);
+        var lr = OpenLayers.Projection.transform(
+            {'x': this.right, 'y': this.bottom}, source, dest);
+        var ul = OpenLayers.Projection.transform(
+            {'x': this.left, 'y': this.top}, source, dest);
+        var ur = OpenLayers.Projection.transform(
+            {'x': this.right, 'y': this.top}, source, dest);
+        this.left   = Math.min(ll.x, ul.x);
+        this.bottom = Math.min(ll.y, lr.y);
+        this.right  = Math.max(lr.x, ur.x);
+        this.top    = Math.max(ul.y, ur.y);
+        return this;
     },
 
     /**

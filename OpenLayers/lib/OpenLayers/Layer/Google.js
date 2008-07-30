@@ -1,13 +1,15 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer/SphericalMercator.js
  * @requires OpenLayers/Layer/EventPane.js
  * @requires OpenLayers/Layer/FixedZoomLevels.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.Google
  * 
  * Inherits from:
@@ -68,17 +70,26 @@ OpenLayers.Layer.Google = OpenLayers.Class(
     /**
      * APIProperty: sphericalMercator
      * {Boolean} Should the map act as a mercator-projected map? This will
-     * cause all interactions with the map to be in the actual map projection,
-     * which allows support for vector drawing, overlaying other maps, etc. 
+     *     cause all interactions with the map to be in the actual map 
+     *     projection, which allows support for vector drawing, overlaying 
+     *     other maps, etc. 
      */
     sphericalMercator: false, 
+    
+    /**
+     * Property: dragObject
+     * {GDraggableObject} Since 2.93, Google has exposed the ability to get
+     *     the maps GDraggableObject. We can now use this for smooth panning
+     */
+    dragObject: null, 
 
     /** 
      * Constructor: OpenLayers.Layer.Google
      * 
      * Parameters:
-     * name - {String}
-     * options - {Object}
+     * name - {String} A name for the layer.
+     * options - {Object} An optional object whose properties will be set
+     *     on the layer.
      */
     initialize: function(name, options) {
         OpenLayers.Layer.EventPane.prototype.initialize.apply(this, arguments);
@@ -102,6 +113,14 @@ OpenLayers.Layer.Google = OpenLayers.Class(
         try {
             // create GMap, hide nav controls
             this.mapObject = new GMap2( this.div );
+            
+            //since v 2.93 getDragObject is now available.
+            if(typeof this.mapObject.getDragObject == "function") {
+                this.dragObject = this.mapObject.getDragObject();
+            } else {
+                this.dragPanMapObject = null;
+            }
+
 
             // move the ToS and branding stuff up to the pane
             // thanks a *mil* Erik for thinking of this
@@ -120,7 +139,7 @@ OpenLayers.Layer.Google = OpenLayers.Class(
             termsOfUse.style.bottom = "";
 
         } catch (e) {
-            // do not crash
+            OpenLayers.Console.error(e);
         }
                
     },
@@ -151,6 +170,13 @@ OpenLayers.Layer.Google = OpenLayers.Class(
      */
     setMapType: function() {
         if (this.mapObject.getCenter() != null) {
+            
+            // Support for custom map types.
+            if (OpenLayers.Util.indexOf(this.mapObject.getMapTypes(),
+                                        this.type) == -1) {
+                this.mapObject.addMapType(this.type);
+            }    
+
             this.mapObject.setMapType(this.type);
             this.map.events.unregister("moveend", this, this.setMapType);
         }
@@ -292,24 +318,7 @@ OpenLayers.Layer.Google = OpenLayers.Class(
      *          it working.
      */
     getWarningHTML:function() {
-
-        var html = "";
-        html += "The Google Layer was unable to load correctly.<br>";
-        html += "<br>";
-        html += "To get rid of this message, select a new BaseLayer "
-        html += "in the layer switcher in the upper-right corner.<br>";
-        html += "<br>";
-        html += "Most likely, this is because the Google Maps library";
-        html += " script was either not included, or does not contain the";
-        html += " correct API key for your site.<br>";
-        html += "<br>";
-        html += "Developers: For help getting this working correctly, ";
-        html += "<a href='http://trac.openlayers.org/wiki/Google' "
-        html +=  "target='_blank'>";
-        html +=     "click here";
-        html += "</a>";
-        
-        return html;
+        return OpenLayers.i18n("googleWarning");
     },
 
 
@@ -334,6 +343,17 @@ OpenLayers.Layer.Google = OpenLayers.Class(
         this.mapObject.setCenter(center, zoom); 
     },
    
+    /**
+     * APIMethod: dragPanMapObject
+     * 
+     * Parameters:
+     * dX - {Integer}
+     * dY - {Integer}
+     */
+    dragPanMapObject: function(dX, dY) {
+        this.dragObject.moveBy(new GSize(-dX, dY));
+    },
+
     /**
      * APIMethod: getMapObjectCenter
      * 

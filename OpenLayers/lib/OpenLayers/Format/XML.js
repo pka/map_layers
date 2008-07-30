@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Format.js
- *
+ */
+
+/**
  * Class: OpenLayers.Format.XML
  * Read and write XML.  For cross-browser XML generation, use methods on an
  *     instance of the XML format class instead of on <code>document<end>.
@@ -110,7 +112,18 @@ OpenLayers.Format.XML = OpenLayers.Class(OpenLayers.Format, {
             data = node.xml;
         } else {
             var serializer = new XMLSerializer();
-            data = serializer.serializeToString(node);
+            if (node.nodeType == 1) {
+                // Add nodes to a document before serializing. Everything else
+                // is serialized as is. This may need more work. See #1218 .
+                var doc = document.implementation.createDocument("", "", null);
+                if (doc.importNode) {
+                    node = doc.importNode(node, true);
+                }
+                doc.appendChild(node);
+                data = serializer.serializeToString(doc);
+            } else {
+                data = serializer.serializeToString(node);
+            }
         }
         return data;
     },
@@ -132,7 +145,11 @@ OpenLayers.Format.XML = OpenLayers.Class(OpenLayers.Format, {
     createElementNS: function(uri, name) {
         var element;
         if(this.xmldom) {
-            element = this.xmldom.createNode(1, name, uri);
+            if(typeof uri == "string") {
+                element = this.xmldom.createNode(1, name, uri);
+            } else {
+                element = this.xmldom.createNode(1, name, "");
+            }
         } else {
             element = document.createElementNS(uri, name);
         }
@@ -247,7 +264,7 @@ OpenLayers.Format.XML = OpenLayers.Class(OpenLayers.Format, {
     getAttributeNS: function(node, uri, name) {
         var attributeValue = "";
         if(node.getAttributeNS) {
-            attributeValue = node.getAttributeNS(uri, name);
+            attributeValue = node.getAttributeNS(uri, name) || "";
         } else {
             var attributeNode = this.getAttributeNodeNS(node, uri, name);
             if(attributeNode) {
@@ -334,6 +351,37 @@ OpenLayers.Format.XML = OpenLayers.Class(OpenLayers.Format, {
             found = !!this.getAttributeNodeNS(node, uri, name);
         }
         return found;
+    },
+    
+    /**
+     * APIMethod: setAttributeNS
+     * Adds a new attribute or changes the value of an attribute with the given
+     *     namespace and name.
+     *
+     * Parameters:
+     * node - {Element} Element node on which to set the attribute.
+     * uri - {String} Namespace URI for the attribute.
+     * name - {String} Qualified name (prefix:localname) for the attribute.
+     * value - {String} Attribute value.
+     */
+    setAttributeNS: function(node, uri, name, value) {
+        if(node.setAttributeNS) {
+            node.setAttributeNS(uri, name, value);
+        } else {
+            if(this.xmldom) {
+                if(uri) {
+                    var attribute = node.ownerDocument.createNode(
+                        2, name, uri
+                    );
+                    attribute.nodeValue = value;
+                    node.setAttributeNode(attribute);
+                } else {
+                    node.setAttribute(name, value);
+                }
+            } else {
+                throw "setAttributeNS not implemented";
+            }
+        }
     },
 
     CLASS_NAME: "OpenLayers.Format.XML" 

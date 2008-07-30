@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Control/Panel.js
@@ -9,9 +9,10 @@
  * @requires OpenLayers/Handler/Point.js
  * @requires OpenLayers/Handler/Path.js
  * @requires OpenLayers/Handler/Polygon.js
- *
- * Class: OpenLayers.Control.EditingToolbar
- 
+ */
+
+/**
+ * Class: OpenLayers.Control.EditingToolbar 
  */
 OpenLayers.Control.EditingToolbar = OpenLayers.Class(
   OpenLayers.Control.Panel, {
@@ -36,7 +37,7 @@ OpenLayers.Control.EditingToolbar = OpenLayers.Class(
           new OpenLayers.Control.DrawFeature(layer, OpenLayers.Handler.Polygon, {'displayClass': 'olControlDrawFeaturePolygon'})
         ];
         for (var i = 0; i < controls.length; i++) {
-            controls[i].featureAdded = function(feature) { feature.state = OpenLayers.State.INSERT; }
+            controls[i].featureAdded = function(feature) { feature.state = OpenLayers.State.INSERT; };
         }
         this.addControls(controls);
     },
@@ -44,6 +45,9 @@ OpenLayers.Control.EditingToolbar = OpenLayers.Class(
     /**
      * Method: draw
      * calls the default draw, and then activates mouse defaults.
+     *
+     * Returns:
+     * {DOMElement}
      */
     draw: function() {
         var div = OpenLayers.Control.Panel.prototype.draw.apply(this, arguments);

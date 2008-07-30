@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Control.js
  * @requires OpenLayers/Control/MouseDefaults.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.MouseToolbar
  * This class is DEPRECATED in 2.4 and will be removed by 3.0.
  * If you need this functionality, use Control.NavToolbar instead!!! 
@@ -103,9 +105,12 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
         btn.activeImgLocation = activeImgLocation;
         
         btn.events = new OpenLayers.Events(this, btn, null, true);
-        btn.events.register("mousedown", this, this.buttonDown); 
-        btn.events.register("mouseup", this, this.buttonUp); 
-        btn.events.register("dblclick", this, OpenLayers.Event.stop);
+        btn.events.on({
+            "mousedown": this.buttonDown,
+            "mouseup": this.buttonUp,
+            "dblclick": OpenLayers.Event.stop,
+            scope: this
+        });
         btn.action = id;
         btn.title = title;
         btn.alt = title;
@@ -123,7 +128,9 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
      * evt - {Event} 
      */
     buttonDown: function(evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         this.buttonClicked = evt.element.action;
         OpenLayers.Event.stop(evt);
     },
@@ -135,7 +142,9 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
      * evt - {Event} 
      */
     buttonUp: function(evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         if (this.buttonClicked != null) {
             if (this.buttonClicked == evt.element.action) {
                 this.switchModeTo(evt.element.action);
@@ -167,7 +176,9 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
      * evt - {Event} 
      */
     defaultMouseDown: function (evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         this.mouseDragStart = evt.xy.clone();
         this.performedDrag = false;
         this.startViaKeyboard = false;
@@ -200,7 +211,7 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
             case "measure":
                 var distance = "";
                 if (this.measureStart) {
-                    measureEnd = this.map.getLonLatFromViewPortPx(this.mouseDragStart);
+                    var measureEnd = this.map.getLonLatFromViewPortPx(this.mouseDragStart);
                     distance = OpenLayers.Util.distVincenty(this.measureStart, measureEnd);
                     distance = Math.round(distance * 100) / 100;
                     distance = distance + "km";
@@ -242,7 +253,7 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
                 this.map.div.style.cursor = "move";
                 break;
         }
-        document.onselectstart = function() { return false; } 
+        document.onselectstart = function() { return false; };
         OpenLayers.Event.stop(evt);
     },
 
@@ -333,11 +344,15 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
      * evt - {Event} 
      */
     defaultMouseUp: function (evt) {
-        if (!OpenLayers.Event.isLeftClick(evt)) return;
+        if (!OpenLayers.Event.isLeftClick(evt)) {
+            return;
+        }
         switch (this.mode) {
             case "zoombox":
                 this.zoomBoxEnd(evt);
-                if (this.startViaKeyboard) this.leaveMode();
+                if (this.startViaKeyboard) {
+                    this.leaveMode();
+                }
                 break;
             case "pan":
                 if (this.performedDrag) {
@@ -360,7 +375,9 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
             && OpenLayers.Util.mouseLeft(evt, this.map.div)) {
             if (this.zoomBox) {
                 this.removeZoomBox();
-                if (this.startViaKeyboard) this.leaveMode();
+                if (this.startViaKeyboard) {
+                    this.leaveMode();
+                }
             }
             this.mouseDragStart = null;
             this.map.div.style.cursor = "default";
@@ -378,7 +395,9 @@ OpenLayers.Control.MouseToolbar = OpenLayers.Class(
             this.performedDrag = false;
             return false;
         }
-    }
+    },
+    
+    CLASS_NAME: "OpenLayers.Control.MouseToolbar"
 });
 
 OpenLayers.Control.MouseToolbar.X = 6;

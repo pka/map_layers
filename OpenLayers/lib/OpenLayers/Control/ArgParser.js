@@ -1,11 +1,13 @@
-/* Cpyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Control.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.ArgParser
  * 
  * Inherits from:
@@ -30,6 +32,20 @@ OpenLayers.Control.ArgParser = OpenLayers.Class(OpenLayers.Control, {
      * {Array(<OpenLayers.Layer>)}
      */
     layers: null,
+    
+    /** 
+     * APIProperty: displayProjection
+     * {<OpenLayers.Projection>} Requires proj4js support. 
+     *     Projection used when reading the coordinates from the URL. This will
+     *     reproject the map coordinates from the URL into the map's
+     *     projection.
+     *
+     *     If you are using this functionality, be aware that any permalink
+     *     which is added to the map will determine the coordinate type which
+     *     is read from the URL, which means you should not add permalinks with
+     *     different displayProjections to the same map. 
+     */
+    displayProjection: null, 
 
     /**
      * Constructor: OpenLayers.Control.ArgParser
@@ -56,12 +72,29 @@ OpenLayers.Control.ArgParser = OpenLayers.Class(OpenLayers.Control, {
             var control = this.map.controls[i];
             if ( (control != this) &&
                  (control.CLASS_NAME == "OpenLayers.Control.ArgParser") ) {
+                
+                // If a second argparser is added to the map, then we 
+                // override the displayProjection to be the one added to the
+                // map. 
+                if (control.displayProjection != this.displayProjection) {
+                    this.displayProjection = control.displayProjection;
+                }    
+                
                 break;
             }
         }
         if (i == this.map.controls.length) {
 
             var args = OpenLayers.Util.getParameters();
+            // Be careful to set layer first, to not trigger unnecessary layer loads
+            if (args.layers) {
+                this.layers = args.layers;
+    
+                // when we add a new layer, set its visibility 
+                this.map.events.register('addlayer', this, 
+                                         this.configureLayers);
+                this.configureLayers();
+            }
             if (args.lat && args.lon) {
                 this.center = new OpenLayers.LonLat(parseFloat(args.lon),
                                                     parseFloat(args.lat));
@@ -73,15 +106,6 @@ OpenLayers.Control.ArgParser = OpenLayers.Class(OpenLayers.Control, {
                 this.map.events.register('changebaselayer', this, 
                                          this.setCenter);
                 this.setCenter();
-            }
-    
-            if (args.layers) {
-                this.layers = args.layers;
-    
-                // when we add a new layer, set its visibility 
-                this.map.events.register('addlayer', this, 
-                                         this.configureLayers);
-                this.configureLayers();
             }
         }
     },
@@ -97,7 +121,12 @@ OpenLayers.Control.ArgParser = OpenLayers.Class(OpenLayers.Control, {
             //dont need to listen for this one anymore
             this.map.events.unregister('changebaselayer', this, 
                                        this.setCenter);
-                                       
+            
+            if (this.displayProjection) {
+                this.center.transform(this.displayProjection, 
+                                      this.map.getProjectionObject()); 
+            }      
+
             this.map.setCenter(this.center, this.zoom);
         }
     },

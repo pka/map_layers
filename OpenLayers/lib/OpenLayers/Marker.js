@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Events.js
  * @requires OpenLayers/Icon.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Marker
  * Instances of OpenLayers.Marker are a combination of a 
  * <OpenLayers.LonLat> and an <OpenLayers.Icon>.  
@@ -170,6 +172,16 @@ OpenLayers.Marker = OpenLayers.Class({
     setOpacity: function(opacity) {
         this.icon.setOpacity(opacity);
     },
+
+    /**
+     * Method: setUrl
+     * Change URL of the Icon Image.
+     * 
+     * url - {String} 
+     */
+    setUrl: function(url) {
+        this.icon.setUrl(url);
+    },    
 
     /** 
      * Method: display

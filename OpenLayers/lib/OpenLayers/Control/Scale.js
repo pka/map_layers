@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Control.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.Scale
  * Display a small scale indicator on the map.
  * Inherits from:
@@ -35,14 +37,12 @@ OpenLayers.Control.Scale = OpenLayers.Class(OpenLayers.Control, {
      * Method: draw
      * 
      * Returns:
-     * {DOMElemen}
+     * {DOMElement}
      */    
     draw: function() {
         OpenLayers.Control.prototype.draw.apply(this, arguments);
         if (!this.element) {
             this.element = document.createElement("div");
-            this.div.className = this.displayClass;
-            this.element.style.fontSize="smaller";
             this.div.appendChild(this.element);
         }
         this.map.events.register( 'moveend', this, this.updateScale);
@@ -55,7 +55,9 @@ OpenLayers.Control.Scale = OpenLayers.Class(OpenLayers.Control, {
      */
     updateScale: function() {
         var scale = this.map.getScale();
-        if (!scale) return;
+        if (!scale) {
+            return;
+        }
 
         if (scale >= 9500 && scale <= 950000) {
             scale = Math.round(scale / 1000) + "K";
@@ -65,7 +67,7 @@ OpenLayers.Control.Scale = OpenLayers.Class(OpenLayers.Control, {
             scale = Math.round(scale);
         }    
         
-        this.element.innerHTML = "Scale = 1 : " + scale;
+        this.element.innerHTML = OpenLayers.i18n("scale", {'scaleDenom':scale});
     }, 
 
     CLASS_NAME: "OpenLayers.Control.Scale"

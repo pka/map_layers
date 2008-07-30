@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Control.js
  * @requires OpenLayers/Handler/Drag.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.DragPan
  * DragPan control.
  *
@@ -28,8 +30,8 @@ OpenLayers.Control.DragPan = OpenLayers.Class(OpenLayers.Control, {
     
     /**
      * Method: draw
-     * Creates a Drag handler, using <OpenLayers.Control.PanMap.panMap> and
-     * <OpenLayers.Control.PanMap.panMapDone> as callbacks.
+     * Creates a Drag handler, using <panMap> and
+     * <panMapDone> as callbacks.
      */    
     draw: function() {
         this.handler = new OpenLayers.Handler.Drag(this,
@@ -44,13 +46,11 @@ OpenLayers.Control.DragPan = OpenLayers.Class(OpenLayers.Control, {
     */
     panMap: function(xy) {
         this.panned = true;
-        var deltaX = this.handler.last.x - xy.x;
-        var deltaY = this.handler.last.y - xy.y;
-        var size = this.map.getSize();
-        var newXY = new OpenLayers.Pixel(size.w / 2 + deltaX,
-                                         size.h / 2 + deltaY);
-        var newCenter = this.map.getLonLatFromViewPortPx( newXY );
-        this.map.setCenter(newCenter, null, this.handler.dragging);
+        this.map.pan(
+            this.handler.last.x - xy.x,
+            this.handler.last.y - xy.y,
+            {dragging: this.handler.dragging, animate: false}
+        );
     },
     
     /**

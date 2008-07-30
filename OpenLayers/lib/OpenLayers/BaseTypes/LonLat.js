@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * Class: OpenLayers.LonLat
@@ -84,8 +84,7 @@ OpenLayers.LonLat = OpenLayers.Class({
      */
     add:function(lon, lat) {
         if ( (lon == null) || (lat == null) ) {
-            var msg = "You must pass both lon and lat values " +
-                      "to the add function.";
+            var msg = OpenLayers.i18n("lonlatAddError");
             OpenLayers.Console.error(msg);
             return null;
         }
@@ -111,6 +110,25 @@ OpenLayers.LonLat = OpenLayers.Class({
                       (isNaN(this.lon) && isNaN(this.lat) && isNaN(ll.lon) && isNaN(ll.lat)));
         }
         return equals;
+    },
+
+    /**
+     * APIMethod: transform
+     * Transform the LonLat object from source to dest. 
+     *
+     * Parameters: 
+     * source - {<OpenLayers.Projection>} Source projection. 
+     * dest   - {<OpenLayers.Projection>} Destination projection. 
+     *
+     * Returns:
+     * {<OpenLayers.LonLat>} Itself, for use in chaining operations.
+     */
+    transform: function(source, dest) {
+        var point = OpenLayers.Projection.transform(
+            {'x': this.lon, 'y': this.lat}, source, dest);
+        this.lon = point.x;
+        this.lat = point.y;
+        return this;
     },
     
     /**

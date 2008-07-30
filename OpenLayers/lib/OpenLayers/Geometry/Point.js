@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Geometry.js
- *
+ */
+
+/**
  * Class: OpenLayers.Geometry.Point
  * Point geometry class. 
  * 
@@ -160,12 +162,52 @@ OpenLayers.Geometry.Point = OpenLayers.Class(OpenLayers.Geometry, {
      *                 distance from the origin.  A scale of 2 doubles the
      *                 distance between the point and origin.
      * origin - {<OpenLayers.Geometry.Point>} Point of origin for resizing
+     * ratio - {Float} Optional x:y ratio for resizing.  Default ratio is 1.
      */
-    resize: function(scale, origin) {
-        this.x = origin.x + (scale * (this.x - origin.x));
-        
+    resize: function(scale, origin, ratio) {
+        ratio = (ratio == undefined) ? 1 : ratio;
+        this.x = origin.x + (scale * ratio * (this.x - origin.x));
         this.y = origin.y + (scale * (this.y - origin.y));
         this.clearBounds();
+    },
+    
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
+            intersect = this.equals(geometry);
+        } else {
+            intersect = geometry.intersects(this);
+        }
+        return intersect;
+    },
+    
+    /**
+     * APIMethod: transform
+     * Translate the x,y properties of the point from source to dest.
+     * 
+     * Parameters:
+     * source - {<OpenLayers.Projection>} 
+     * dest - {<OpenLayers.Projection>}
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} 
+     */
+    transform: function(source, dest) {
+        if ((source && dest)) {
+            OpenLayers.Projection.transform(
+                this, source, dest); 
+        }       
+        return this;
     },
 
     CLASS_NAME: "OpenLayers.Geometry.Point"

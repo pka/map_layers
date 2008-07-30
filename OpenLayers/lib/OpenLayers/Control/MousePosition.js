@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Control.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Control.MousePosition
  */
 OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
@@ -18,6 +20,7 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
     
     /** 
      * APIProperty: prefix
+     * {String}
      */
     prefix: '',
     
@@ -50,6 +53,13 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
      * {<OpenLayers.LonLat>}
      */
     lastXy: null,
+
+    /**
+     * APIProperty: displayProjection
+     * {<OpenLayers.Projection>} A projection that the 
+     * mousecontrol will display.
+     */
+    displayProjection: null, 
     
     /**
      * Constructor: OpenLayers.Control.MousePosition
@@ -81,7 +91,6 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
         if (!this.element) {
             this.div.left = "";
             this.div.top = "";
-            this.div.className = this.displayClass;
             this.element = this.div;
         }
         
@@ -108,9 +117,33 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
             }
 
             lonLat = this.map.getLonLatFromPixel(evt.xy);
+            if (!lonLat) { 
+                // map has not yet been properly initialized
+                return;
+            }    
+            if (this.displayProjection) {
+                lonLat.transform(this.map.getProjectionObject(), 
+                                 this.displayProjection );
+            }      
             this.lastXy = evt.xy;
+            
         }
         
+        var newHtml = this.formatOutput(lonLat);
+
+        if (newHtml != this.element.innerHTML) {
+            this.element.innerHTML = newHtml;
+        }
+    },
+
+    /**
+     * Method: formatOutput
+     * Override to provide custom display output
+     *
+     * Parameters:
+     * lonLat - {<OpenLayers.LonLat>} Location to display
+     */
+    formatOutput: function(lonLat) {
         var digits = parseInt(this.numdigits);
         var newHtml =
             this.prefix +
@@ -118,11 +151,8 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
             this.separator + 
             lonLat.lat.toFixed(digits) +
             this.suffix;
-
-        if (newHtml != this.element.innerHTML) {
-            this.element.innerHTML = newHtml;
-        }
-    },
+        return newHtml;
+     },
 
     /** 
      * Method: setMap

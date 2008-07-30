@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Geometry/Collection.js
- *
+ */
+
+/**
  * Class: OpenLayers.Geometry.MultiPoint
  * MultiPoint is a collection of Points.  Create a new instance with the
  * <OpenLayers.Geometry.MultiPoint> constructor.
@@ -29,7 +31,7 @@ OpenLayers.Geometry.MultiPoint = OpenLayers.Class(
      * Create a new MultiPoint Geometry
      *
      * Parameters:
-     * components - Array({<OpenLayers.Geometry.Point>}) 
+     * components - {Array(<OpenLayers.Geometry.Point>)} 
      *
      * Returns:
      * {<OpenLayers.Geometry.MultiPoint>}

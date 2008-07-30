@@ -1,13 +1,15 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Handler/Point.js
  * @requires OpenLayers/Geometry/Point.js
  * @requires OpenLayers/Geometry/LineString.js
- *
+ */
+
+/**
  * Class: OpenLayers.Handler.Path
  * Handler to draw a path on the map.  Path is displayed on mouse down,
  * moves on mouse move, and is finished on mouse up.
@@ -79,7 +81,9 @@ OpenLayers.Handler.Path = OpenLayers.Class(OpenLayers.Handler.Point, {
      */
     destroyFeature: function() {
         OpenLayers.Handler.Point.prototype.destroyFeature.apply(this);
-        this.line.destroy();
+        if(this.line) {
+            this.line.destroy();
+        }
         this.line = null;
     },
     

@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /** 
  * @requires OpenLayers/Control.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Control.LayerSwitcher
  *
  * Inherits from:
@@ -111,10 +113,13 @@ OpenLayers.Control.LayerSwitcher =
         this.clearLayersArray("base");
         this.clearLayersArray("data");
         
-        this.map.events.unregister("addlayer", this, this.redraw);
-        this.map.events.unregister("changelayer", this, this.redraw);
-        this.map.events.unregister("removelayer", this, this.redraw);
-        this.map.events.unregister("changebaselayer", this, this.redraw);
+        this.map.events.un({
+            "addlayer": this.redraw,
+            "changelayer": this.redraw,
+            "removelayer": this.redraw,
+            "changebaselayer": this.redraw,
+            scope: this
+        });
         
         OpenLayers.Control.prototype.destroy.apply(this, arguments);
     },
@@ -128,10 +133,13 @@ OpenLayers.Control.LayerSwitcher =
     setMap: function(map) {
         OpenLayers.Control.prototype.setMap.apply(this, arguments);
 
-        this.map.events.register("addlayer", this, this.redraw);
-        this.map.events.register("changelayer", this, this.redraw);
-        this.map.events.register("removelayer", this, this.redraw);
-        this.map.events.register("changebaselayer", this, this.redraw);
+        this.map.events.on({
+            "addlayer": this.redraw,
+            "changelayer": this.redraw,
+            "removelayer": this.redraw,
+            "changebaselayer": this.redraw,
+            scope: this
+        });
     },
 
     /**
@@ -281,7 +289,7 @@ OpenLayers.Control.LayerSwitcher =
                     'inputElem': inputElem,
                     'layer': layer,
                     'layerSwitcher': this
-                }
+                };
                 OpenLayers.Event.observe(inputElem, "mouseup", 
                     OpenLayers.Function.bindAsEventListener(this.onInputClick,
                                                             context)
@@ -496,7 +504,7 @@ OpenLayers.Control.LayerSwitcher =
 
 
         this.baseLbl = document.createElement("div");
-        this.baseLbl.innerHTML = "<u>Base Layer</u>";
+        this.baseLbl.innerHTML = OpenLayers.i18n("baseLayer");
         this.baseLbl.style.marginTop = "3px";
         this.baseLbl.style.marginLeft = "3px";
         this.baseLbl.style.marginBottom = "3px";
@@ -509,7 +517,7 @@ OpenLayers.Control.LayerSwitcher =
                      
 
         this.dataLbl = document.createElement("div");
-        this.dataLbl.innerHTML = "<u>Overlays</u>";
+        this.dataLbl.innerHTML = OpenLayers.i18n("overlays");
         this.dataLbl.style.marginTop = "3px";
         this.dataLbl.style.marginLeft = "3px";
         this.dataLbl.style.marginBottom = "3px";

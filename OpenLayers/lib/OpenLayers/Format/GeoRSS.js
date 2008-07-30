@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Format/XML.js
@@ -8,7 +8,9 @@
  * @requires OpenLayers/Geometry/Point.js
  * @requires OpenLayers/Geometry/LineString.js
  * @requires OpenLayers/Geometry/Polygon.js
- *
+ */
+
+/**
  * Class: OpenLayers.Format.GeoRSS
  * Read/write GeoRSS parser. Create a new instance with the 
  *     <OpenLayers.Format.GeoRSS> constructor.
@@ -59,6 +61,20 @@ OpenLayers.Format.GeoRSS = OpenLayers.Class(OpenLayers.Format.XML, {
     featureDescription: "No Description",
     
     /**
+     * Property: gmlParse
+     * {Object} GML Format object for parsing features
+     * Non-API and only created if necessary
+     */
+    gmlParser: null,
+
+    /**
+     * APIProperty: xy
+     * {Boolean} Order of the GML coordinate: true:(x,y) or false:(y,x)
+     * For GeoRSS the default is (y,x), therefore: false
+     */ 
+    xy: false,
+    
+    /**
      * Constructor: OpenLayers.Format.GeoRSS
      * Create a new parser for GeoRSS.
      *
@@ -91,44 +107,64 @@ OpenLayers.Format.GeoRSS = OpenLayers.Class(OpenLayers.Format.XML, {
         var polygon = this.getElementsByTagNameNS(item,
                                                 this.georssns,
                                                 "polygon");
-        
+        var where = this.getElementsByTagNameNS(item, 
+                                                this.georssns, 
+                                                "where");
         if (point.length > 0 || (lat.length > 0 && lon.length > 0)) {
+            var location;
             if (point.length > 0) {
-                var location = OpenLayers.String.trim(
+                location = OpenLayers.String.trim(
                                 point[0].firstChild.nodeValue).split(/\s+/);
-                
                 if (location.length !=2) {
-                    var location = OpenLayers.String.trim(
+                    location = OpenLayers.String.trim(
                                 point[0].firstChild.nodeValue).split(/\s*,\s*/);
                 }
             } else {
-                var location = [parseFloat(lat[0].firstChild.nodeValue),
+                location = [parseFloat(lat[0].firstChild.nodeValue),
                                 parseFloat(lon[0].firstChild.nodeValue)];
             }    
+
             var geometry = new OpenLayers.Geometry.Point(parseFloat(location[1]),
-                                                     parseFloat(location[0]));
+                                                         parseFloat(location[0]));
+              
         } else if (line.length > 0) {
             var coords = OpenLayers.String.trim(line[0].firstChild.nodeValue).split(/\s+/);
             var components = []; 
+            var point;
             for (var i=0; i < coords.length; i+=2) {
-                var point = new OpenLayers.Geometry.Point(parseFloat(coords[i+1]), parseFloat(coords[i]));
+                point = new OpenLayers.Geometry.Point(parseFloat(coords[i+1]), 
+                                                     parseFloat(coords[i]));
                 components.push(point);
             }
             geometry = new OpenLayers.Geometry.LineString(components);
         } else if (polygon.length > 0) { 
             var coords = OpenLayers.String.trim(polygon[0].firstChild.nodeValue).split(/\s+/);
             var components = []; 
+            var point;
             for (var i=0; i < coords.length; i+=2) {
-                var point = new OpenLayers.Geometry.Point(parseFloat(coords[i+1]), parseFloat(coords[i]));
+                point = new OpenLayers.Geometry.Point(parseFloat(coords[i+1]), 
+                                                     parseFloat(coords[i]));
                 components.push(point);
             }
             geometry = new OpenLayers.Geometry.Polygon([new OpenLayers.Geometry.LinearRing(components)]);
+        } else if (where.length > 0) { 
+            if (!this.gmlParser) {
+              this.gmlParser = new OpenLayers.Format.GML({'xy': this.xy});
+            }
+            var feature = this.gmlParser.parseFeature(where[0]);
+            geometry = feature.geometry;
         }
+        
+        if (geometry && this.internalProjection && this.externalProjection) {
+            geometry.transform(this.externalProjection, 
+                               this.internalProjection);
+        }
+
         return geometry;
     },        
 
     /**
-     * Method: createGeometryFromItem
+     * Method: createFeatureFromItem
      * Return a feature from a GeoRSS Item.
      *
      * Parameters:
@@ -139,6 +175,7 @@ OpenLayers.Format.GeoRSS = OpenLayers.Class(OpenLayers.Format.XML, {
      */
     createFeatureFromItem: function(item) {
         var geometry = this.createGeometryFromItem(item);
+     
         /* Provide defaults for title and description */
         var title = this.getChildValue(item, "*", "title", this.featureTitle);
        
@@ -230,7 +267,7 @@ OpenLayers.Format.GeoRSS = OpenLayers.Class(OpenLayers.Format.XML, {
      * Accept Feature Collection, and return a string. 
      * 
      * Parameters: 
-     * features - Array({<OpenLayers.Feature.Vector>}) List of features to serialize into a string.
+     * features - {Array(<OpenLayers.Feature.Vector>)} List of features to serialize into a string.
      */
     write: function(features) {
         var georss;
@@ -295,6 +332,11 @@ OpenLayers.Format.GeoRSS = OpenLayers.Class(OpenLayers.Format.XML, {
      * {DOMElement} A gml node.
      */
     buildGeometryNode: function(geometry) {
+        if (this.internalProjection && this.externalProjection) {
+            geometry = geometry.clone();
+            geometry.transform(this.internalProjection, 
+                               this.externalProjection);
+        }
         var node;
         // match Polygon
         if (geometry.CLASS_NAME == "OpenLayers.Geometry.Polygon") {
@@ -340,7 +382,7 @@ OpenLayers.Format.GeoRSS = OpenLayers.Class(OpenLayers.Format.XML, {
             }
             path = parts.join(" ");
         } else {
-           path = geometry.y + " " + geometry.x;
+            path = geometry.y + " " + geometry.x;
         }
         return this.createTextNode(path);
     },

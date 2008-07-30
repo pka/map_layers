@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.HTTPRequest
  * 
  * Inherits from: 
@@ -113,10 +115,31 @@ OpenLayers.Layer.HTTPRequest = OpenLayers.Class(OpenLayers.Layer, {
      * 
      * Parameters:
      * newParams - {Object}
+     *
+     * Returns:
+     * redrawn: {Boolean} whether the layer was actually redrawn.
      */
     mergeNewParams:function(newParams) {
         this.params = OpenLayers.Util.extend(this.params, newParams);
-        this.redraw();
+        return this.redraw();
+    },
+
+    /**
+     * APIMethod: redraw
+     * Redraws the layer.  Returns true if the layer was redrawn, false if not.
+     *
+     * Parameters:
+     * force - {Boolean} Force redraw by adding random parameter.
+     *
+     * Returns:
+     * {Boolean} The layer was redrawn.
+     */
+    redraw: function(force) { 
+        if (force) {
+            return this.mergeNewParams({"_olSalt": Math.random()});
+        } else {
+            return OpenLayers.Layer.prototype.redraw.apply(this, []);
+        }
     },
     
     /**

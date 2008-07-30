@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD licence.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * licence.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer/Grid.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.TMS
  * 
  * Inherits from:
@@ -37,7 +39,6 @@ OpenLayers.Layer.TMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
      * Parameters:
      * name - {String}
      * url - {String}
-     * params - {Object}
      * options - {Object} Hashtable of extra options to tag onto the layer
      */
     initialize: function(name, url, options) {
@@ -81,7 +82,7 @@ OpenLayers.Layer.TMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
     },    
     
     /**
-     * Method: getUrl
+     * Method: getURL
      * 
      * Parameters:
      * bounds - {<OpenLayers.Bounds>}
@@ -111,6 +112,7 @@ OpenLayers.Layer.TMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
      * 
      * Parameters:
      * bounds - {<OpenLayers.Bounds>}
+     * position - {<OpenLayers.Pixel>}
      * 
      * Returns:
      * {<OpenLayers.Tile.Image>} The added OpenLayers.Tile.Image

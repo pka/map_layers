@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Popup/Anchored.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Popup.AnchoredBubble
  * 
  * Inherits from: 
@@ -32,8 +34,15 @@ OpenLayers.Popup.AnchoredBubble =
      *     a 'size' (<OpenLayers.Size>) and 'offset' (<OpenLayers.Pixel>) 
      *     (Note that this is generally an <OpenLayers.Icon>).
      * closeBox - {Boolean}
+     * closeBoxCallback - {Function} Function to be called on closeBox click.
      */
-    initialize:function(id, lonlat, size, contentHTML, anchor, closeBox) {
+    initialize:function(id, lonlat, size, contentHTML, anchor, closeBox,
+                        closeBoxCallback) {
+        
+        this.padding = new OpenLayers.Bounds(
+            0, OpenLayers.Popup.AnchoredBubble.CORNER_SIZE,
+            0, OpenLayers.Popup.AnchoredBubble.CORNER_SIZE
+        );
         OpenLayers.Popup.Anchored.prototype.initialize.apply(this, arguments);
     },
 
@@ -60,17 +69,12 @@ OpenLayers.Popup.AnchoredBubble =
     },
 
     /**
-     * Method: moveTo
-     * The popup may have been moved to a new relative location, in which case
+     * Method: updateRelativePosition
+     * The popup has been moved to a new relative location, in which case
      *     we will want to re-do the rico corners.
-     * 
-     * Parameters:
-     * px - {<OpenLayers.Pixel>}
      */
-    moveTo: function(px) {
-        OpenLayers.Popup.Anchored.prototype.moveTo.apply(this, arguments);
-        this.setRicoCorners(!this.rounded);
-        this.rounded = true;
+    updateRelativePosition: function() {
+        this.setRicoCorners();
     },
 
     /**
@@ -81,22 +85,8 @@ OpenLayers.Popup.AnchoredBubble =
      */
     setSize:function(size) { 
         OpenLayers.Popup.Anchored.prototype.setSize.apply(this, arguments);
-        
-        if (this.contentDiv != null) {
 
-            var contentSize = this.size.clone();
-            contentSize.h -= (2 * OpenLayers.Popup.AnchoredBubble.CORNER_SIZE);
-            contentSize.h -= (2 * this.padding);
-    
-            this.contentDiv.style.height = contentSize.h + "px";
-            this.contentDiv.style.width  = contentSize.w + "px";
-            
-            if (this.map) {
-                //size has changed - must redo corners        
-                this.setRicoCorners(!this.rounded);
-                this.rounded = true;
-            }    
-        }
+        this.setRicoCorners();
     },  
 
     /**
@@ -113,7 +103,7 @@ OpenLayers.Popup.AnchoredBubble =
         if (this.div != null) {
             if (this.contentDiv != null) {
                 this.div.style.background = "transparent";
-                OpenLayers.Rico.Corner.changeColor(this.contentDiv, 
+                OpenLayers.Rico.Corner.changeColor(this.groupDiv, 
                                                    this.backgroundColor);
             }
         }
@@ -126,13 +116,11 @@ OpenLayers.Popup.AnchoredBubble =
      * opacity - {float}
      */
     setOpacity:function(opacity) { 
-        if (opacity != undefined) {
-            this.opacity = opacity; 
-        }
+        OpenLayers.Popup.Anchored.prototype.setOpacity.call(this, opacity);
         
         if (this.div != null) {
-            if (this.contentDiv != null) {
-                OpenLayers.Rico.Corner.changeOpacity(this.contentDiv, 
+            if (this.groupDiv != null) {
+                OpenLayers.Rico.Corner.changeOpacity(this.groupDiv, 
                                                      this.opacity);
             }
         }
@@ -152,11 +140,8 @@ OpenLayers.Popup.AnchoredBubble =
     /** 
      * Method: setRicoCorners
      * Update RICO corners according to the popup's current relative postion.
-     *  
-     * Parameters:
-     * firstTime - {Boolean} This the first time the corners are being rounded.
      */
-    setRicoCorners:function(firstTime) {
+    setRicoCorners:function() {
     
         var corners = this.getCornersToRound(this.relativePosition);
         var options = {corners: corners,
@@ -164,8 +149,9 @@ OpenLayers.Popup.AnchoredBubble =
                        bgColor: "transparent",
                          blend: false};
 
-        if (firstTime) {
+        if (!this.rounded) {
             OpenLayers.Rico.Corner.round(this.div, options);
+            this.rounded = true;
         } else {
             OpenLayers.Rico.Corner.reRound(this.groupDiv, options);
             //set the popup color and opacity

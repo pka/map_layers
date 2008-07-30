@@ -1,11 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
-
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Feature.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Feature.WFS
  * WFS handling class, for use as a featureClass on the WFS layer for handling
  * 'point' WFS types. Good for subclassing when creating a custom WFS like
@@ -27,7 +28,7 @@ OpenLayers.Feature.WFS = OpenLayers.Class(OpenLayers.Feature, {
     initialize: function(layer, xmlNode) {
         var newArguments = arguments;
         var data = this.processXMLNode(xmlNode);
-        newArguments = new Array(layer, data.lonlat, data)
+        newArguments = new Array(layer, data.lonlat, data);
         OpenLayers.Feature.prototype.initialize.apply(this, newArguments);
         this.createMarker();
         this.layer.addMarker(this.marker);

@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * Note:
@@ -11,7 +11,9 @@
 
 /**
  * @requires OpenLayers/Format.js
- *
+ */
+
+/**
  * Class: OpenLayers.Format.JSON
  * A parser to read/write JSON safely.  Create a new instance with the
  *     <OpenLayers.Format.JSON> constructor.
@@ -93,8 +95,9 @@ OpenLayers.Format.JSON = OpenLayers.Class(OpenLayers.Format, {
          *     characters.
          */
         try {
-            if(/^("(\\.|[^"\\\n\r])*?"|[,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t])+?$/.
-                    test(json)) {
+            if (/^[\],:{}\s]*$/.test(json.replace(/\\["\\\/bfnrtu]/g, '@').
+                                replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, ']').
+                                replace(/(?:^|:|,)(?:\s*\[)+/g, ''))) {
 
                 /**
                  * In the second stage we use the eval function to compile the
@@ -284,7 +287,7 @@ OpenLayers.Format.JSON = OpenLayers.Class(OpenLayers.Format, {
          * Method: serialize.string
          * Transform a string into a JSON string.
          *
-         * Parameters
+         * Parameters:
          * string - {String} The string to be serialized
          * 
          * Returns:

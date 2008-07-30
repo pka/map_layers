@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer/EventPane.js
  * @requires OpenLayers/Layer/FixedZoomLevels.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.VirtualEarth
  * 
  * Inherits from:
@@ -103,10 +105,28 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
 
         if (this.mapObject != null) {
             try { // this is to catch a Mozilla bug without falling apart
-                this.mapObject.LoadMap(null, null, this.type);
+
+                // The fourth argument is whether the map is 'fixed' -- not 
+                // draggable. See: 
+                // http://blogs.msdn.com/virtualearth/archive/2007/09/28/locking-a-virtual-earth-map.aspx
+                //
+                this.mapObject.LoadMap(null, null, this.type, true);
+                this.mapObject.AttachEvent("onmousedown", function() {return true; });
+
             } catch (e) { }
             this.mapObject.HideDashboard();
         }
+
+        //can we do smooth panning? this is an unpublished method, so we need 
+        // to be careful
+        if ( !this.mapObject ||
+             !this.mapObject.vemapcontrol ||
+             !this.mapObject.vemapcontrol.PanMap ||
+             (typeof this.mapObject.vemapcontrol.PanMap != "function")) {
+
+            this.dragPanMapObject = null;
+        }
+
     },
 
     /** 
@@ -117,23 +137,9 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
      *          it working.
      */
     getWarningHTML:function() {
-
-        var html = "";
-        html += "The VE Layer was unable to load correctly.<br>";
-        html += "<br>";
-        html += "To get rid of this message, select a new BaseLayer "
-        html += "in the layer switcher in the upper-right corner.<br>";
-        html += "<br>";
-        html += "Most likely, this is because the VE library";
-        html += " script was either not correctly included.<br>";
-        html += "<br>";
-        html += "Developers: For help getting this working correctly, ";
-        html += "<a href='http://trac.openlayers.org/wiki/VirtualEarth' "
-        html +=  "target='_blank'>";
-        html +=     "click here";
-        html += "</a>";
-
-        return html;
+        return OpenLayers.i18n(
+            "getLayerWarning", {'layerType':'VE', 'layerLib':'VirtualEarth'}
+        );
     },
 
 
@@ -167,6 +173,17 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
      */
     getMapObjectCenter: function() {
         return this.mapObject.GetCenter();
+    },
+
+    /**
+     * APIMethod: dragPanMapObject
+     * 
+     * Parameters:
+     * dX - {Integer}
+     * dY - {Integer}
+     */
+    dragPanMapObject: function(dX, dY) {
+        this.mapObject.vemapcontrol.PanMap(dX, -dY);
     },
 
     /** 

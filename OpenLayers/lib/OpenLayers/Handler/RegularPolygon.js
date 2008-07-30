@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Handler/Drag.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Handler.RegularPolygon
  * Handler to draw a regular polygon on the map.  Polygon is displayed on mouse
  *     down, moves or is modified on mouse move, and is finished on mouse up.
@@ -61,6 +63,18 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
      *     another drawing.
      */
     persist: false,
+
+    /**
+     * APIProperty: irregular
+     * {Boolean} Draw an irregular polygon instead of a regular polygon.
+     *     Default is false.  If true, the initial mouse down will represent
+     *     one corner of the polygon bounds and with each mouse movement, the
+     *     polygon will be stretched so the opposite corner of its bounds
+     *     follows the mouse position.  This property takes precedence over
+     *     the radius property.  If set to true, the radius property will
+     *     be ignored.
+     */
+    irregular: false,
 
     /**
      * Property: angle
@@ -164,11 +178,19 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
             if(this.dragging) {
                 this.cancel();
             }
-            this.map.removeLayer(this.layer, false);
-            this.layer.destroy();
-            if (this.feature) {
-                this.feature.destroy();
-            }    
+            // If a layer's map property is set to null, it means that that
+            // layer isn't added to the map. Since we ourself added the layer
+            // to the map in activate(), we can assume that if this.layer.map
+            // is null it means that the layer has been destroyed (as a result
+            // of map.destroy() for example.
+            if (this.layer.map != null) {
+                this.layer.destroy(false);
+                if (this.feature) {
+                    this.feature.destroy();
+                }
+            }
+            this.layer = null;
+            this.feature = null;
             deactivated = true;
         }
         return deactivated;
@@ -186,7 +208,7 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
         var maploc = this.map.getLonLatFromPixel(evt.xy);
         this.origin = new OpenLayers.Geometry.Point(maploc.lon, maploc.lat);
         // create the new polygon
-        if(!this.fixedRadius) {
+        if(!this.fixedRadius || this.irregular) {
             // smallest radius should not be less one pixel in map units
             // VML doesn't behave well with smaller
             this.radius = this.map.getResolution();
@@ -196,7 +218,7 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
         }
         this.feature = new OpenLayers.Feature.Vector();
         this.createGeometry();
-        this.layer.addFeatures([this.feature]);
+        this.layer.addFeatures([this.feature], {silent: true});
         this.layer.drawFeature(this.feature, this.style);
     },
     
@@ -210,7 +232,10 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
     move: function(evt) {
         var maploc = this.map.getLonLatFromPixel(evt.xy);
         var point = new OpenLayers.Geometry.Point(maploc.lon, maploc.lat);
-        if(this.fixedRadius) {
+        if(this.irregular) {
+            var ry = Math.sqrt(2) * Math.abs(point.y - this.origin.y) / 2;
+            this.radius = Math.max(this.map.getResolution() / 2, ry);
+        } else if(this.fixedRadius) {
             this.origin = point;
         } else {
             this.calculateAngle(point, evt);
@@ -218,6 +243,18 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
                                    point.distanceTo(this.origin));
         }
         this.modifyGeometry();
+        if(this.irregular) {
+            var dx = point.x - this.origin.x;
+            var dy = point.y - this.origin.y;
+            var ratio;
+            if(dy == 0) {
+                ratio = dx / (this.radius * Math.sqrt(2));
+            } else {
+                ratio = dx / dy;
+            }
+            this.feature.geometry.resize(1, this.origin, ratio);
+            this.feature.geometry.move(dx / 2, dy / 2);
+        }
         this.layer.drawFeature(this.feature, this.style);
     },
 
@@ -269,6 +306,7 @@ OpenLayers.Handler.RegularPolygon = OpenLayers.Class(OpenLayers.Handler.Drag, {
         // if the number of sides ever changes, create a new geometry
         if(ring.components.length != (this.sides + 1)) {
             this.createGeometry();
+             ring = this.feature.geometry.components[0];
         }
         for(var i=0; i<this.sides; ++i) {
             point = ring.components[i];

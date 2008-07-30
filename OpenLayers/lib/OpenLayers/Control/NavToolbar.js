@@ -1,13 +1,18 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Control/Panel.js
  * @requires OpenLayers/Control/Navigation.js
  * @requires OpenLayers/Control/ZoomBox.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.NavToolbar
+ * 
+ * Inherits from:
+ *  - <OpenLayers.Control.Panel>
  */
 OpenLayers.Control.NavToolbar = OpenLayers.Class(OpenLayers.Control.Panel, {
 

@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Control.js
- *
+ */
+
+/**
  * Class: OpenLayers.Control.ZoomToMaxExtent 
  * Imlements a very simple button control. Designed to be used with a 
  * <OpenLayers.Control.Panel>.

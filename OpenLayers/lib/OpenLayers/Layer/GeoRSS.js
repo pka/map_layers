@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer/Markers.js
  * @requires OpenLayers/Ajax.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.GeoRSS
  * Add GeoRSS Point features to your map. 
  * 
@@ -24,9 +26,16 @@ OpenLayers.Layer.GeoRSS = OpenLayers.Class(OpenLayers.Layer.Markers, {
 
     /** 
      * Property: features 
-     * Array({<OpenLayers.Feature>}) 
+     * {Array(<OpenLayers.Feature>)} 
      */
     features: null,
+    
+    /**
+     * APIProperty: formatOptions
+     * {Object} Hash of options which should be passed to the format when it is
+     * created. Must be passed in the constructor.
+     */
+    formatOptions: null, 
 
     /** 
      * Property: selectedFeature 
@@ -67,17 +76,50 @@ OpenLayers.Layer.GeoRSS = OpenLayers.Class(OpenLayers.Layer.Markers, {
         OpenLayers.Layer.Markers.prototype.initialize.apply(this, [name, options]);
         this.location = location;
         this.features = [];
-        this.events.triggerEvent("loadstart");
-        OpenLayers.loadURL(location, null, this, this.parseData);
     },
 
     /**
      * Method: destroy 
      */
     destroy: function() {
+        // Warning: Layer.Markers.destroy() must be called prior to calling
+        // clearFeatures() here, otherwise we leak memory. Indeed, if
+        // Layer.Markers.destroy() is called after clearFeatures(), it won't be
+        // able to remove the marker image elements from the layer's div since
+        // the markers will have been destroyed by clearFeatures().
+        OpenLayers.Layer.Markers.prototype.destroy.apply(this, arguments);
         this.clearFeatures();
         this.features = null;
-        OpenLayers.Layer.Markers.prototype.destroy.apply(this, arguments);
+    },
+
+    /**
+     * Method: loadRSS
+     * Start the load of the RSS data. Don't do this when we first add the layer,
+     * since we may not be visible at any point, and it would therefore be a waste.
+     */
+    loadRSS: function() {
+        if (!this.loaded) {
+            this.events.triggerEvent("loadstart");
+            OpenLayers.loadURL(this.location, null, this, this.parseData);
+            this.loaded = true;
+        }    
+    },    
+    
+    /**
+     * Method: moveTo
+     * If layer is visible and RSS has not been loaded, load RSS. 
+     * 
+     * Parameters:
+     * bounds - {Object} 
+     * zoomChanged - {Object} 
+     * minor - {Object} 
+     */
+    moveTo:function(bounds, zoomChanged, minor) {
+        OpenLayers.Layer.Markers.prototype.moveTo.apply(this, arguments);
+        if(this.visibility && !this.loaded){
+            this.events.triggerEvent("loadstart");
+            this.loadRSS();
+        }
     },
         
     /**
@@ -89,8 +131,8 @@ OpenLayers.Layer.GeoRSS = OpenLayers.Class(OpenLayers.Layer.Markers, {
      */
     parseData: function(ajaxRequest) {
         var doc = ajaxRequest.responseXML;
-        if (!doc || ajaxRequest.fileType!="XML") {
-            doc = OpenLayers.parseXMLString(ajaxRequest.responseText);
+        if (!doc || !doc.documentElement) {
+            doc = OpenLayers.Format.XML.prototype.read(ajaxRequest.responseText);
         }
         
         if (this.useFeedTitle) {
@@ -106,98 +148,57 @@ OpenLayers.Layer.GeoRSS = OpenLayers.Class(OpenLayers.Layer.Markers, {
             }    
         }
        
-        /* Try RSS items first, then Atom entries */
-        var itemlist = null;
-        try {
-            itemlist = doc.getElementsByTagNameNS('*', 'item');
-        }
-        catch (e) {
-            itemlist = doc.getElementsByTagName('item');
-        }
-
-        if (itemlist.length == 0) {
-            try {
-                itemlist = doc.getElementsByTagNameNS('*', 'entry');
-            }
-            catch(e) {
-                itemlist = doc.getElementsByTagName('entry');
-            }
-        }
-
-        for (var i = 0; i < itemlist.length; i++) {
+        var options = {};
+        
+        OpenLayers.Util.extend(options, this.formatOptions);
+        
+        if (this.map && !this.projection.equals(this.map.getProjectionObject())) {
+            options.externalProjection = this.projection;
+            options.internalProjection = this.map.getProjectionObject();
+        }    
+        
+        var format = new OpenLayers.Format.GeoRSS(options);
+        var features = format.read(doc);
+        
+        for (var i = 0; i < features.length; i++) {
             var data = {};
-            var point = OpenLayers.Util.getNodes(itemlist[i], 'georss:point');
-            var lat = OpenLayers.Util.getNodes(itemlist[i], 'geo:lat');
-            var lon = OpenLayers.Util.getNodes(itemlist[i], 'geo:long');
-            if (point.length > 0) {
-                var location = point[0].firstChild.nodeValue.split(" ");
-                
-                if (location.length !=2) {
-                    var location = point[0].firstChild.nodeValue.split(",");
-                }
-            } else if (lat.length > 0 && lon.length > 0) {
-                var location = [parseFloat(lat[0].firstChild.nodeValue), parseFloat(lon[0].firstChild.nodeValue)];
-            } else {
-                continue;
-            }
-            location = new OpenLayers.LonLat(parseFloat(location[1]), parseFloat(location[0]));
+            var feature = features[i];
             
-            /* Provide defaults for title and description */
-            var title = "Untitled";
-            try {
-              title = OpenLayers.Util.getNodes(itemlist[i], 
-                        "title")[0].firstChild.nodeValue;
-            }
-            catch (e) { title="Untitled"; }
-           
-            /* First try RSS descriptions, then Atom summaries */
-            var descr_nodes = null;
-            try {
-                descr_nodes = itemlist[i].getElementsByTagNameNS("*",
-                                                "description");
-            }
-            catch (e) {
-                descr_nodes = itemlist[i].getElementsByTagName("description");
-            }
-            if (descr_nodes.length == 0) {
-                try {
-                    descr_nodes = itemlist[i].getElementsByTagNameNS("*",
-                                                "summary");
-                }
-                catch (e) {
-                    descr_nodes = itemlist[i].getElementsByTagName("summary");
-                }
-            }
+            // we don't support features with no geometry in the GeoRSS
+            // layer at this time. 
+            if (!feature.geometry) {
+                continue;
+            }    
+            
+            var title = feature.attributes.title ? 
+                         feature.attributes.title : "Untitled";
+            
+            var description = feature.attributes.description ? 
+                         feature.attributes.description : "No description.";
+            
+            var link = feature.attributes.link ? feature.attributes.link : "";
 
-            var description = "No description.";
-            try {
-              description = descr_nodes[0].firstChild.nodeValue;
-            }
-            catch (e) { description="No description."; }
-
-            /* If no link URL is found in the first child node, try the
-               href attribute */
-            try {
-              var link = OpenLayers.Util.getNodes(itemlist[i], "link")[0].firstChild.nodeValue;
-            } 
-            catch (e) {
-              try {
-                var link = OpenLayers.Util.getNodes(itemlist[i], "link")[0].getAttribute("href");
-              }
-              catch (e) {}
-            }
-
+            var location = feature.geometry.getBounds().getCenterLonLat();
+            
+            
             data.icon = this.icon == null ? 
                                      OpenLayers.Marker.defaultIcon() : 
                                      this.icon.clone();
             
-            data.popupSize = this.popupSize ? this.popupSize.clone() : new OpenLayers.Size(250, 120);
-            if ((title != null) && (description != null)) {
-                contentHTML = '<div class="olLayerGeoRSSClose">[x]</div>'; 
+            data.popupSize = this.popupSize ? 
+                             this.popupSize.clone() :
+                             new OpenLayers.Size(250, 120);
+            
+            if (title || description) {
+                var contentHTML = '<div class="olLayerGeoRSSClose">[x]</div>'; 
                 contentHTML += '<div class="olLayerGeoRSSTitle">';
-                if (link) contentHTML += '<a class="link" href="'+link+'" target="_blank">';
+                if (link) {
+                    contentHTML += '<a class="link" href="'+link+'" target="_blank">';
+                }
                 contentHTML += title;
-                if (link) contentHTML += '</a>';
+                if (link) {
+                    contentHTML += '</a>';
+                }
                 contentHTML += '</div>';
                 contentHTML += '<div style="" class="olLayerGeoRSSDescription">';
                 contentHTML += description;
@@ -220,7 +221,7 @@ OpenLayers.Layer.GeoRSS = OpenLayers.Class(OpenLayers.Layer.Markers, {
      * evt - {Event} 
      */
     markerClick: function(evt) {
-        sameMarkerClicked = (this == this.layer.selectedFeature);
+        var sameMarkerClicked = (this == this.layer.selectedFeature);
         this.layer.selectedFeature = (!sameMarkerClicked) ? this : null;
         for(var i=0; i < this.layer.map.popups.length; i++) {
             this.layer.map.removePopup(this.layer.map.popups[i]);
@@ -253,6 +254,5 @@ OpenLayers.Layer.GeoRSS = OpenLayers.Class(OpenLayers.Layer.Markers, {
         }        
     },
     
-    /** @final @type String */
     CLASS_NAME: "OpenLayers.Layer.GeoRSS"
 });

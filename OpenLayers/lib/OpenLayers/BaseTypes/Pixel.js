@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * Class: OpenLayers.Pixel
@@ -91,7 +91,7 @@ OpenLayers.Pixel = OpenLayers.Class({
      */
     add:function(x, y) {
         if ( (x == null) || (y == null) ) {
-            var msg = "You must pass both x and y values to the add function.";
+            var msg = OpenLayers.i18n("pixelAddError");
             OpenLayers.Console.error(msg);
             return null;
         }

@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Control.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Control.Attribution
  * Add attribution from layers to the map display. Uses 'attribution' property
  * of each layer.
@@ -33,10 +35,13 @@ OpenLayers.Control.Attribution =
      * Destroy control.
      */
     destroy: function() {
-        this.map.events.unregister("removelayer", this, this.updateAttribution);
-        this.map.events.unregister("addlayer", this, this.updateAttribution);
-        this.map.events.unregister("changelayer", this, this.updateAttribution);
-        this.map.events.unregister("changebaselayer", this, this.updateAttribution);
+        this.map.events.un({
+            "removelayer": this.updateAttribution,
+            "addlayer": this.updateAttribution,
+            "changelayer": this.updateAttribution,
+            "changebaselayer": this.updateAttribution,
+            scope: this
+        });
         
         OpenLayers.Control.prototype.destroy.apply(this, arguments);
     },    
@@ -51,10 +56,13 @@ OpenLayers.Control.Attribution =
     draw: function() {
         OpenLayers.Control.prototype.draw.apply(this, arguments);
         
-        this.map.events.register('changebaselayer', this, this.updateAttribution);
-        this.map.events.register('changelayer', this, this.updateAttribution);
-        this.map.events.register('addlayer', this, this.updateAttribution);
-        this.map.events.register('removelayer', this, this.updateAttribution);
+        this.map.events.on({
+            'changebaselayer': this.updateAttribution,
+            'changelayer': this.updateAttribution,
+            'addlayer': this.updateAttribution,
+            'removelayer': this.updateAttribution,
+            scope: this
+        });
         this.updateAttribution();
         
         return this.div;    
@@ -77,6 +85,5 @@ OpenLayers.Control.Attribution =
         }
     },
 
-    /** @final @type String */
     CLASS_NAME: "OpenLayers.Control.Attribution"
 });

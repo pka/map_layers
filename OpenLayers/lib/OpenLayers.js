@@ -1,9 +1,10 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /* 
  * @requires OpenLayers/BaseTypes.js
+ * @requires OpenLayers/Lang/en.js
  */ 
 
 (function() {
@@ -19,7 +20,7 @@
      * Namespace: OpenLayers
      * The OpenLayers object provides a namespace for all things OpenLayers
      */
-    OpenLayers = {
+    window.OpenLayers = {
         
         /**
          * Property: _scriptName
@@ -32,7 +33,7 @@
          * Return the path to this script.
          *
          * Returns:
-         * Path to this script
+         * {String} Path to this script
          */
         _getScriptLocation: function () {
             var scriptLocation = "";
@@ -43,9 +44,14 @@
                 var src = scripts[i].getAttribute('src');
                 if (src) {
                     var index = src.lastIndexOf(scriptName); 
+                    // set path length for src up to a query string
+                    var pathLength = src.lastIndexOf('?');
+                    if (pathLength < 0) {
+                        pathLength = src.length;
+                    }
                     // is it found, at the end of the URL?
-                    if ((index > -1) && (index + scriptName.length == src.length)) {  
-                        scriptLocation = src.slice(0, -scriptName.length);
+                    if ((index > -1) && (index + scriptName.length == pathLength)) {
+                        scriptLocation = src.slice(0, pathLength - scriptName.length);
                         break;
                     }
                 }
@@ -74,10 +80,12 @@
             "OpenLayers/BaseTypes/Pixel.js",
             "OpenLayers/BaseTypes/Size.js",
             "OpenLayers/Console.js",
+            "OpenLayers/Tween.js",
             "Rico/Corner.js",
             "Rico/Color.js",
             "OpenLayers/Ajax.js",
             "OpenLayers/Events.js",
+            "OpenLayers/Projection.js",
             "OpenLayers/Map.js",
             "OpenLayers/Layer.js",
             "OpenLayers/Icon.js",
@@ -96,6 +104,7 @@
             "OpenLayers/Layer/Yahoo.js",
             "OpenLayers/Layer/HTTPRequest.js",
             "OpenLayers/Layer/Grid.js",
+            "OpenLayers/Layer/MapGuide.js",
             "OpenLayers/Layer/MapServer.js",
             "OpenLayers/Layer/MapServer/Untiled.js",
             "OpenLayers/Layer/KaMap.js",
@@ -111,10 +120,14 @@
             "OpenLayers/Layer/TileCache.js",
             "OpenLayers/Popup/Anchored.js",
             "OpenLayers/Popup/AnchoredBubble.js",
+            "OpenLayers/Popup/Framed.js",
+            "OpenLayers/Popup/FramedCloud.js",
             "OpenLayers/Feature.js",
             "OpenLayers/Feature/Vector.js",
             "OpenLayers/Feature/WFS.js",
             "OpenLayers/Handler.js",
+            "OpenLayers/Handler/Click.js",
+            "OpenLayers/Handler/Hover.js",
             "OpenLayers/Handler/Point.js",
             "OpenLayers/Handler/Path.js",
             "OpenLayers/Handler/Polygon.js",
@@ -126,6 +139,7 @@
             "OpenLayers/Handler/Keyboard.js",
             "OpenLayers/Control.js",
             "OpenLayers/Control/Attribution.js",
+            "OpenLayers/Control/Button.js",
             "OpenLayers/Control/ZoomBox.js",
             "OpenLayers/Control/ZoomToMaxExtent.js",
             "OpenLayers/Control/DragPan.js",
@@ -139,12 +153,14 @@
             "OpenLayers/Control/ArgParser.js",
             "OpenLayers/Control/Permalink.js",
             "OpenLayers/Control/Scale.js",
+            "OpenLayers/Control/ScaleLine.js",
             "OpenLayers/Control/LayerSwitcher.js",
             "OpenLayers/Control/DrawFeature.js",
             "OpenLayers/Control/DragFeature.js",
             "OpenLayers/Control/ModifyFeature.js",
             "OpenLayers/Control/Panel.js",
             "OpenLayers/Control/SelectFeature.js",
+            "OpenLayers/Control/NavigationHistory.js",
             "OpenLayers/Geometry.js",
             "OpenLayers/Geometry/Rectangle.js",
             "OpenLayers/Geometry/Collection.js",
@@ -162,7 +178,15 @@
             "OpenLayers/Renderer/SVG.js",
             "OpenLayers/Renderer/VML.js",
             "OpenLayers/Layer/Vector.js",
+            "OpenLayers/Layer/PointTrack.js",
             "OpenLayers/Layer/GML.js",
+            "OpenLayers/Style.js",
+            "OpenLayers/StyleMap.js",
+            "OpenLayers/Rule.js",
+            "OpenLayers/Filter.js",
+            "OpenLayers/Filter/FeatureId.js",
+            "OpenLayers/Filter/Logical.js",
+            "OpenLayers/Filter/Comparison.js",
             "OpenLayers/Format.js",
             "OpenLayers/Format/XML.js",
             "OpenLayers/Format/GML.js",
@@ -170,23 +194,35 @@
             "OpenLayers/Format/GeoRSS.js",
             "OpenLayers/Format/WFS.js",
             "OpenLayers/Format/WKT.js",
+            "OpenLayers/Format/OSM.js",
+            "OpenLayers/Format/SLD.js",
+            "OpenLayers/Format/SLD/v1.js",
+            "OpenLayers/Format/SLD/v1_0_0.js",
+            "OpenLayers/Format/Text.js",
             "OpenLayers/Format/JSON.js",
             "OpenLayers/Format/GeoJSON.js",
+            "OpenLayers/Format/WMC.js",
+            "OpenLayers/Format/WMC/v1.js",
+            "OpenLayers/Format/WMC/v1_0_0.js",
+            "OpenLayers/Format/WMC/v1_1_0.js",
             "OpenLayers/Layer/WFS.js",
             "OpenLayers/Control/MouseToolbar.js",
             "OpenLayers/Control/NavToolbar.js",
-            "OpenLayers/Control/EditingToolbar.js"
+            "OpenLayers/Control/EditingToolbar.js",
+            "OpenLayers/Lang.js",
+            "OpenLayers/Lang/en.js"
         ); // etc.
 
-
-
-        var allScriptTags = "";
-        var host = OpenLayers._getScriptLocation() + "lib/";
-    
+        var agent = navigator.userAgent;
+        var docWrite = (agent.match("MSIE") || agent.match("Safari"));
+        if(docWrite) {
+            var allScriptTags = new Array(jsfiles.length);
+        }
+        var host = OpenLayers._getScriptLocation() + "lib/";    
         for (var i = 0; i < jsfiles.length; i++) {
-            if (/MSIE/.test(navigator.userAgent) || /Safari/.test(navigator.userAgent)) {
-                var currentScriptTag = "<script src='" + host + jsfiles[i] + "'></script>"; 
-                allScriptTags += currentScriptTag;
+            if (docWrite) {
+                allScriptTags[i] = "<script src='" + host + jsfiles[i] +
+                                   "'></script>"; 
             } else {
                 var s = document.createElement("script");
                 s.src = host + jsfiles[i];
@@ -196,11 +232,13 @@
                 h.appendChild(s);
             }
         }
-        if (allScriptTags) document.write(allScriptTags);
+        if (docWrite) {
+            document.write(allScriptTags.join(""));
+        }
     }
 })();
 
 /**
  * Constant: VERSION_NUMBER
  */
-OpenLayers.VERSION_NUMBER="$Revision: 4899 $";
+OpenLayers.VERSION_NUMBER="$Revision: 6819 $";

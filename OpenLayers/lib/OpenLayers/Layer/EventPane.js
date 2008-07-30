@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Layer.js
  * @requires OpenLayers/Util.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.EventPane
  * Base class for 3rd party layers.  Create a new event pane layer with the
  * <OpenLayers.Layer.EventPane> constructor.
@@ -15,6 +17,19 @@
  *  - <OpenLayers.Layer>
  */
 OpenLayers.Layer.EventPane = OpenLayers.Class(OpenLayers.Layer, {
+    
+    /**
+     * APIProperty: smoothDragPan
+     * {Boolean} smoothDragPan determines whether non-public/internal API
+     *     methods are used for better performance while dragging EventPane 
+     *     layers. When not in sphericalMercator mode, the smoother dragging 
+     *     doesn't actually move north/south directly with the number of 
+     *     pixels moved, resulting in a slight offset when you drag your mouse 
+     *     north south with this option on. If this visual disparity bothers 
+     *     you, you should turn this option off, or use spherical mercator. 
+     *     Default is on.
+     */
+    smoothDragPan: true,
 
     /**
      * Property: isBaseLayer
@@ -136,8 +151,8 @@ OpenLayers.Layer.EventPane = OpenLayers.Class(OpenLayers.Layer, {
 
         var viewSize = this.map.getSize();
         
-        msgW = Math.min(viewSize.w, 300);
-        msgH = Math.min(viewSize.h, 200);
+        var msgW = Math.min(viewSize.w, 300);
+        var msgH = Math.min(viewSize.h, 200);
         var size = new OpenLayers.Size(msgW, msgH);
 
         var centerPx = new OpenLayers.Pixel(viewSize.w/2, viewSize.h/2);
@@ -224,9 +239,16 @@ OpenLayers.Layer.EventPane = OpenLayers.Class(OpenLayers.Layer, {
                 if ( !(newCenter.equals(oldCenter)) || 
                      !(newZoom == oldZoom) ) {
 
-                    var center = this.getMapObjectLonLatFromOLLonLat(newCenter);
-                    var zoom = this.getMapObjectZoomFromOLZoom(newZoom);
-                    this.setMapObjectCenter(center, zoom);
+                    if (dragging && this.dragPanMapObject && 
+                        this.smoothDragPan) {
+                        var oldPx = this.map.getViewPortPxFromLonLat(oldCenter);
+                        var newPx = this.map.getViewPortPxFromLonLat(newCenter);
+                        this.dragPanMapObject(newPx.x-oldPx.x, oldPx.y-newPx.y);
+                    } else {
+                        var center = this.getMapObjectLonLatFromOLLonLat(newCenter);
+                        var zoom = this.getMapObjectZoomFromOLZoom(newZoom);
+                        this.setMapObjectCenter(center, zoom, dragging);
+                    }
                 }
             }
         }
@@ -256,7 +278,7 @@ OpenLayers.Layer.EventPane = OpenLayers.Class(OpenLayers.Layer, {
         if ( (this.mapObject != null) && 
              (this.getMapObjectCenter() != null) ) {
             var moPixel = this.getMapObjectPixelFromOLPixel(viewPortPx);
-            var moLonLat = this.getMapObjectLonLatFromMapObjectPixel(moPixel)
+            var moLonLat = this.getMapObjectLonLatFromMapObjectPixel(moPixel);
             lonlat = this.getOLLonLatFromMapObjectLonLat(moLonLat);
         }
         return lonlat;
@@ -281,7 +303,7 @@ OpenLayers.Layer.EventPane = OpenLayers.Class(OpenLayers.Layer, {
              (this.getMapObjectCenter() != null) ) {
 
             var moLonLat = this.getMapObjectLonLatFromOLLonLat(lonlat);
-            var moPixel = this.getMapObjectPixelFromMapObjectLonLat(moLonLat)
+            var moPixel = this.getMapObjectPixelFromMapObjectLonLat(moLonLat);
         
             viewPortPx = this.getOLPixelFromMapObjectPixel(moPixel);
         }

@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Layer.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.FixedZoomLevels
  *   Some Layers will already have established zoom levels (like google 
  *    or ve). Instead of trying to determine them and populate a resolutions[]
@@ -105,10 +107,12 @@ OpenLayers.Layer.FixedZoomLevels = OpenLayers.Class({
         if (this.RESOLUTIONS != null) {
             var resolutionsIndex = 0;
             this.resolutions = [];
-            for(var i= this.minZoomLevel; i < this.numZoomLevels; i++) {
+            for(var i= this.minZoomLevel; i <= this.maxZoomLevel; i++) {
                 this.resolutions[resolutionsIndex++] = this.RESOLUTIONS[i];            
             }
-        }        
+            this.maxResolution = this.resolutions[0];
+            this.minResolution = this.resolutions[this.resolutions.length - 1];
+        }       
     },
     
     /**
@@ -183,9 +187,7 @@ OpenLayers.Layer.FixedZoomLevels = OpenLayers.Class({
         if (this.resolutions != null) {
             return OpenLayers.Layer.prototype.getZoomForResolution.apply(this, arguments);
         } else {
-            var extent = OpenLayers.Layer.prototype.getExtent.apply(this, 
-                                                                    [resolution]);
-                                                                    
+            var extent = OpenLayers.Layer.prototype.getExtent.apply(this, []);
             return this.getZoomForExtent(extent);
         }
     },

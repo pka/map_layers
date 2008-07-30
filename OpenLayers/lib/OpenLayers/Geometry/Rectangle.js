@@ -1,14 +1,19 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Geometry.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Geometry.Rectangle
- * A Rectangle is a simple geometry. It is specified by a a point (x and y) 
- *     and dimensions (width and height), all of which are directly accessible 
- *     as properties.
+ * This class is *not supported*, and probably isn't what you're looking for.
+ *     Instead, most users probably want something like:
+ *     (code)
+ *     var poly = new OpenLayers.Bounds(0,0,10,10).toGeometry();
+ *     (end)
+ *     This will create a rectangular Polygon geometry. 
  * 
  * Inherits:
  *  - <OpenLayers.Geometry>

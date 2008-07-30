@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Util.js
- *
+ */
+
+/**
  * Namespace: OpenLayers.Event
  * Utility functions for event handling.
  */
@@ -145,8 +147,9 @@ OpenLayers.Event = {
     findElement: function(event, tagName) {
         var element = OpenLayers.Event.element(event);
         while (element.parentNode && (!element.tagName ||
-              (element.tagName.toUpperCase() != tagName.toUpperCase())))
+              (element.tagName.toUpperCase() != tagName.toUpperCase()))){
             element = element.parentNode;
+        }
         return element;
     },
 
@@ -294,10 +297,12 @@ OpenLayers.Event = {
         }
     
         //actually remove the event listener from browser
-        if (element.removeEventListener) {
-            element.removeEventListener(name, observer, useCapture);
-        } else if (element && element.detachEvent) {
-            element.detachEvent('on' + name, observer);
+        if (foundEntry) {
+            if (element.removeEventListener) {
+                element.removeEventListener(name, observer, useCapture);
+            } else if (element && element.detachEvent) {
+                element.detachEvent('on' + name, observer);
+            }
         }
         return foundEntry;
     },
@@ -308,7 +313,10 @@ OpenLayers.Event = {
      *   stopObservingElement on each. 
      */
     unloadCache: function() {
-        if (OpenLayers.Event.observers) {
+        // check for OpenLayers.Event before checking for observers, because
+        // OpenLayers.Event may be undefined in IE if no map instance was
+        // created
+        if (OpenLayers.Event && OpenLayers.Event.observers) {
             for (var cacheID in OpenLayers.Event.observers) {
                 var elementObservers = OpenLayers.Event.observers[cacheID];
                 OpenLayers.Event._removeElementObservers.apply(this, 
@@ -473,6 +481,27 @@ OpenLayers.Events = OpenLayers.Class({
         // disable dragstart in IE so that mousedown/move/up works normally
         OpenLayers.Event.observe(element, "dragstart", OpenLayers.Event.stop);
     },
+    
+    /**
+     * Method: on
+     * Convenience method for registering listeners with a common scope.
+     *
+     * Example use:
+     * (code)
+     * events.on({
+     *     "loadstart": loadStartListener,
+     *     "loadend": loadEndListener,
+     *     scope: object
+     * });
+     * (end)
+     */
+    on: function(object) {
+        for(var type in object) {
+            if(type != "scope") {
+                this.register(type, object.scope, object[type]);
+            }
+        }
+    },
 
     /**
      * APIMethod: register
@@ -503,7 +532,9 @@ OpenLayers.Events = OpenLayers.Class({
      */
     register: function (type, obj, func) {
 
-        if (func != null) {
+        if (func != null && 
+            ((this.eventTypes && OpenLayers.Util.indexOf(this.eventTypes, type) != -1) ||
+            OpenLayers.Util.indexOf(this.BROWSER_EVENTS, type) != -1)) {
             if (obj == null)  {
                 obj = this.object;
             }
@@ -545,6 +576,27 @@ OpenLayers.Events = OpenLayers.Class({
     },
     
     /**
+     * Method: un
+     * Convenience method for unregistering listeners with a common scope.
+     *
+     * Example use:
+     * (code)
+     * events.un({
+     *     "loadstart": loadStartListener,
+     *     "loadend": loadEndListener,
+     *     scope: object
+     * });
+     * (end)
+     */
+    un: function(object) {
+        for(var type in object) {
+            if(type != "scope") {
+                this.unregister(type, object.scope, object[type]);
+            }
+        }
+    },
+
+    /**
      * APIMethod: unregister
      *
      * Parameters:
@@ -583,11 +635,15 @@ OpenLayers.Events = OpenLayers.Class({
 
     /**
      * APIMethod: triggerEvent
-     * Trigger a specified registered event
+     * Trigger a specified registered event.  
      * 
      * Parameters:
      * type - {String} 
-     * evt - {Event} 
+     * evt - {Event}
+     *
+     * Returns:
+     * {Boolean} The last listener return.  If a listener returns false, the
+     *     chain of listeners will stop getting called.
      */
     triggerEvent: function (type, evt) {
 
@@ -597,24 +653,23 @@ OpenLayers.Events = OpenLayers.Class({
         }
         evt.object = this.object;
         evt.element = this.element;
-
+        if(!evt.type) {
+            evt.type = type;
+        }
+    
         // execute all callbacks registered for specified type
         // get a clone of the listeners array to
         // allow for splicing during callbacks
         var listeners = (this.listeners[type]) ?
                             this.listeners[type].slice() : null;
         if ((listeners != null) && (listeners.length > 0)) {
+            var continueChain;
             for (var i = 0; i < listeners.length; i++) {
                 var callback = listeners[i];
-                var continueChain;
-                if (callback.obj != null) {
-                    // use the 'call' method to bind the context to callback.obj
-                    continueChain = callback.func.call(callback.obj, evt);
-                } else {
-                    continueChain = callback.func(evt);
-                }
+                // bind the context to callback.obj
+                continueChain = callback.func.apply(callback.obj, [evt]);
     
-                if ((continueChain != null) && (continueChain == false)) {
+                if ((continueChain != undefined) && (continueChain == false)) {
                     // if callback returns false, execute no more callbacks.
                     break;
                 }
@@ -624,6 +679,7 @@ OpenLayers.Events = OpenLayers.Class({
                 OpenLayers.Event.stop(evt, true);
             }
         }
+        return continueChain;
     },
 
     /**
@@ -637,7 +693,7 @@ OpenLayers.Events = OpenLayers.Class({
      */
     handleBrowserEvent: function (evt) {
         evt.xy = this.getMousePosition(evt); 
-        this.triggerEvent(evt.type, evt)
+        this.triggerEvent(evt.type, evt);
     },
 
     /**
@@ -646,7 +702,7 @@ OpenLayers.Events = OpenLayers.Class({
      * Parameters:
      * evt - {Event} 
      * 
-     * Returns 
+     * Returns:
      * {<OpenLayers.Pixel>} The current xy coordinate of the mouse, adjusted
      *                      for offsets
      */

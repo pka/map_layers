@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Renderer/Elements.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Renderer.SVG
  * 
  * Inherits:
@@ -19,13 +21,12 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     xmlns: "http://www.w3.org/2000/svg",
 
     /**
-     * Property: maxPixel
+     * Constant: MAX_PIXEL
      * {Integer} Firefox has a limitation where values larger or smaller than  
      *           about 15000 in an SVG document lock the browser up. This 
      *           works around it.
       */
-    maxPixel: 15000,
-    
+    MAX_PIXEL: 15000,
 
     /** 
      * Property: localResolution
@@ -34,7 +35,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     localResolution: null,
 
     /**
-     * Constructor: OpenLayers.Renderer.SVN
+     * Constructor: OpenLayers.Renderer.SVG
      * 
      * Parameters:
      * containerID - {String}
@@ -61,12 +62,29 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {Boolean} Whether or not the browser supports the SVG renderer
      */
     supported: function() {
-        var svgFeature = "http://www.w3.org/TR/SVG11/feature#SVG";
-        var supported = (document.implementation && 
-                        (document.implementation.hasFeature("org.w3c.svg", "1.0") || 
-                         document.implementation.hasFeature(svgFeature, "1.1")));
-        return supported;
+        var svgFeature = "http://www.w3.org/TR/SVG11/feature#";
+        return (document.implementation && 
+           (document.implementation.hasFeature("org.w3c.svg", "1.0") || 
+            document.implementation.hasFeature(svgFeature + "SVG", "1.1") || 
+            document.implementation.hasFeature(svgFeature + "BasicStructure", "1.1") ));
     },    
+
+    /**
+     * Method: inValidRange
+     * See #669 for more information
+     *
+     * Parameters:
+     * x - {Integer}
+     * y - {Integer}
+     * 
+     * Returns:
+     * {Boolean} Whether or not the 'x' and 'y' coordinates are in the  
+     *           valid range.
+     */ 
+    inValidRange: function(x, y) {
+        return (x >= -this.MAX_PIXEL && x <= this.MAX_PIXEL &&
+                y >= -this.MAX_PIXEL && y <= this.MAX_PIXEL);
+    },
 
     /**
      * Method: setExtent
@@ -79,7 +97,6 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
                                                                arguments);
         
         var resolution = this.getResolution();
-        
 
         // If the resolution has changed, start over changing the corner, because
         // the features will redraw.
@@ -87,7 +104,6 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
             this.left = -extent.left / resolution;
             this.top = extent.top / resolution;
         }
-
         
         var left = 0;
         var top = 0;
@@ -124,23 +140,21 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         this.rendererRoot.setAttributeNS(null, "height", this.size.h);
     },
 
-    
-
-
     /** 
      * Method: getNodeType 
      * 
      * Parameters:
      * geometry - {<OpenLayers.Geometry>}
+     * style - {Object}
      * 
      * Returns:
      * {String} The corresponding node type for the specified geometry
      */
-    getNodeType: function(geometry) {
+    getNodeType: function(geometry, style) {
         var nodeType = null;
         switch (geometry.CLASS_NAME) {
             case "OpenLayers.Geometry.Point":
-                nodeType = "circle";
+                nodeType = style.externalGraphic ? "image" : "circle";
                 break;
             case "OpenLayers.Geometry.Rectangle":
                 nodeType = "rect";
@@ -179,26 +193,12 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     setStyle: function(node, style, options) {
         style = style  || node._style;
         options = options || node._options;
-
-        if (node._geometryClass == "OpenLayers.Geometry.Point") {
+        var r = parseFloat(node.getAttributeNS(null, "r"));
+        if (node._geometryClass == "OpenLayers.Geometry.Point" && r) {
             if (style.externalGraphic) {
-                // remove old node
-                var id = node.getAttributeNS(null, "id");
                 var x = parseFloat(node.getAttributeNS(null, "cx"));
                 var y = parseFloat(node.getAttributeNS(null, "cy"));
-                var _featureId = node._featureId;
-                var _geometryClass = node._geometryClass;
-                var _style = node._style;
-                this.root.removeChild(node);
                 
-                // create new image node
-                var node = this.createNode("image", id);
-                node._featureId = _featureId;
-                node._geometryClass = _geometryClass;
-                node._style = _style;
-                this.root.appendChild(node);
-
-                // now style the new node
                 if (style.graphicWidth && style.graphicHeight) {
                   node.setAttributeNS(null, "preserveAspectRatio", "none");
                 }
@@ -210,14 +210,14 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
                     style.graphicXOffset : -(0.5 * width);
                 var yOffset = (style.graphicYOffset != undefined) ?
                     style.graphicYOffset : -(0.5 * height);
+
                 var opacity = style.graphicOpacity || style.fillOpacity;
                 
                 node.setAttributeNS(null, "x", (x + xOffset).toFixed());
-                node.setAttributeNS(null, "y", (-y + yOffset).toFixed());
+                node.setAttributeNS(null, "y", (y + yOffset).toFixed());
                 node.setAttributeNS(null, "width", width);
                 node.setAttributeNS(null, "height", height);
                 node.setAttributeNS("http://www.w3.org/1999/xlink", "href", style.externalGraphic);
-                node.setAttributeNS(null, "transform", "scale(1,-1)");
                 node.setAttributeNS(null, "style", "opacity: "+opacity);
             } else {
                 node.setAttributeNS(null, "r", style.pointRadius);
@@ -244,9 +244,10 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
             node.setAttributeNS(null, "pointer-events", style.pointerEvents);
         }
         
-        if (style.cursor) {
+        if (style.cursor != null) {
             node.setAttributeNS(null, "cursor", style.cursor);
         }
+        return node;
     },
 
     /** 
@@ -288,9 +289,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {DOMElement} The specific render engine's root element
      */
     createRenderRoot: function() {
-        var id = this.container.id + "_svgRoot";
-        var rendererRoot = this.nodeFactory(id, "svg");
-        return rendererRoot;                        
+        return this.nodeFactory(this.container.id + "_svgRoot", "svg");
     },
 
     /**
@@ -300,15 +299,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {DOMElement} The main root element to which we'll add vectors
      */
     createRoot: function() {
-        var id = this.container.id + "_root";
-
-        var root = this.nodeFactory(id, "g");
-
-        // flip the SVG display Y axis upside down so it 
-        // matches the display Y axis of the map
-        root.setAttributeNS(null, "transform", "scale(1, -1)");
-
-        return root;
+        return this.nodeFactory(this.container.id + "_root", "g");
     },
 
     /**************************************
@@ -341,17 +332,16 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     drawCircle: function(node, geometry, radius) {
         var resolution = this.getResolution();
         var x = (geometry.x / resolution + this.left);
-        var y = (geometry.y / resolution - this.top);
-        var draw = true;
-        if (x < -this.maxPixel || x > this.maxPixel) { draw = false; }
-        if (y < -this.maxPixel || y > this.maxPixel) { draw = false; }
+        var y = (this.top - geometry.y / resolution);
 
-        if (draw) { 
+        if (this.inValidRange(x, y)) { 
             node.setAttributeNS(null, "cx", x);
             node.setAttributeNS(null, "cy", y);
             node.setAttributeNS(null, "r", radius);
         } else {
-            this.root.removeChild(node);
+            node.setAttributeNS(null, "cx", "");
+            node.setAttributeNS(null, "cy", "");
+            node.setAttributeNS(null, "r", 0);
         }    
             
     },
@@ -365,7 +355,8 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * geometry - {<OpenLayers.Geometry>}
      */ 
     drawLineString: function(node, geometry) {
-        node.setAttributeNS(null, "points", this.getComponentsString(geometry.components));  
+        node.setAttributeNS(null, "points", 
+                            this.getComponentsString(geometry.components));  
     },
     
     /**v
@@ -377,7 +368,8 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * geometry - {<OpenLayers.Geometry>}
      */ 
     drawLinearRing: function(node, geometry) {
-        node.setAttributeNS(null, "points", this.getComponentsString(geometry.components));
+        node.setAttributeNS(null, "points", 
+                            this.getComponentsString(geometry.components));
     },
     
     /**
@@ -395,7 +387,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
             var linearRing = geometry.components[j];
             d += " M";
             for (var i = 0; i < linearRing.components.length; i++) {
-                var component = this.getShortString(linearRing.components[i])
+                var component = this.getShortString(linearRing.components[i]);
                 if (component) {
                     d += " " + component;
                 } else {
@@ -421,58 +413,21 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * geometry - {<OpenLayers.Geometry>}
      */ 
     drawRectangle: function(node, geometry) {
-        // This needs to be reworked 
+        var resolution = this.getResolution();
         var x = (geometry.x / resolution + this.left);
-        var y = (geometry.y / resolution - this.top);
-        var draw = true;
-        if (x < -this.maxPixel || x > this.maxPixel) { draw = false; }
-        if (y < -this.maxPixel || y > this.maxPixel) { draw = false; }
-        if (draw) {
+        var y = (this.top - geometry.y / resolution);
+
+        if (this.inValidRange(x, y)) { 
             node.setAttributeNS(null, "x", x);
             node.setAttributeNS(null, "y", y);
-            node.setAttributeNS(null, "width", geometry.width);
-            node.setAttributeNS(null, "height", geometry.height);
+            node.setAttributeNS(null, "width", geometry.width / resolution);
+            node.setAttributeNS(null, "height", geometry.height / resolution);
         } else {
             node.setAttributeNS(null, "x", "");
             node.setAttributeNS(null, "y", "");
             node.setAttributeNS(null, "width", 0);
             node.setAttributeNS(null, "height", 0);
-        }    
-
-    },
-    
-    
-    /**
-     * Method: drawCurve
-     * This method is only called by the renderer itself.
-     * 
-     * Parameters: 
-     * node - {DOMElement}
-     * geometry - {<OpenLayers.Geometry>}
-     */ 
-    drawCurve: function(node, geometry) {
-        var d = null;
-        var draw = true;
-        for (var i = 0; i < geometry.components.length; i++) {
-            if ((i%3) == 0 && (i/3) == 0) {
-                var component = this.getShortString(geometry.components[i]);
-                if (!component) { draw = false; }
-                d = "M " + component;
-            } else if ((i%3) == 1) {
-                var component = this.getShortString(geometry.components[i]);
-                if (!component) { draw = false; }
-                d += " C " + component;
-            } else {
-                var component = this.getShortString(geometry.components[i]);
-                if (!component) { draw = false; }
-                d += " " + component;
-            }
         }
-        if (draw) {
-            node.setAttributeNS(null, "d", d);
-        } else {
-            node.setAttributeNS(null, "d", "");
-        }    
     },
     
     /**
@@ -515,7 +470,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * Method: getComponentString
      * 
      * Parameters:
-     * components - {Array(<OpenLayers.Geometry.Point)} Array of points
+     * components - {Array(<OpenLayers.Geometry.Point>)} Array of points
      */
     getComponentsString: function(components) {
         var strings = [];
@@ -541,12 +496,13 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     getShortString: function(point) {
         var resolution = this.getResolution();
         var x = (point.x / resolution + this.left);
-        var y = (point.y / resolution - this.top);
-        if (x < -this.maxPixel || x > this.maxPixel) { return false; }
-        if (y < -this.maxPixel || y > this.maxPixel) { return false; }
-        var string =  x + "," + y;  
-        return string;
-        
+        var y = (this.top - point.y / resolution);
+
+        if (this.inValidRange(x, y)) { 
+            return x + "," + y;
+        } else {
+            return false;
+        }
     },
 
     CLASS_NAME: "OpenLayers.Renderer.SVG"

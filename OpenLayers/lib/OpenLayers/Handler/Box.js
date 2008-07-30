@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Handler.js
  * @requires OpenLayers/Handler/Drag.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Handler.Box
  * Handler for dragging a rectangle across the map.  Box is displayed 
  * on mouse down, moves on mouse move, and is finished on mouse up.
@@ -20,6 +22,13 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
      * {<OpenLayers.Handler.Drag>} 
      */
     dragHandler: null,
+
+    /**
+     * APIProperty: boxDivClassName
+     * {String} The CSS class to use for drawing the box. Default is
+     *     olHandlerBoxZoomBox
+     */
+    boxDivClassName: 'olHandlerBoxZoomBox',
 
     /**
      * Constructor: OpenLayers.Handler.Box
@@ -62,15 +71,8 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
     */
     startBox: function (xy) {
         this.zoomBox = OpenLayers.Util.createDiv('zoomBox',
-                                                 this.dragHandler.start,
-                                                 null,
-                                                 null,
-                                                 "absolute",
-                                                 "2px solid red");
-        this.zoomBox.style.backgroundColor = "white";
-        this.zoomBox.style.filter = "alpha(opacity=50)"; // IE
-        this.zoomBox.style.opacity = "0.50";
-        this.zoomBox.style.fontSize = "1px";
+                                                 this.dragHandler.start);
+        this.zoomBox.className = this.boxDivClassName;                                         
         this.zoomBox.style.zIndex = this.map.Z_INDEX_BASE["Popup"] - 1;
         this.map.viewPortDiv.appendChild(this.zoomBox);
 

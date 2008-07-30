@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 // TRASH THIS
 OpenLayers.State = {
@@ -9,12 +9,14 @@ OpenLayers.State = {
     INSERT: 'Insert',
     UPDATE: 'Update',
     DELETE: 'Delete'
-}
+};
 
 /**
  * @requires OpenLayers/Feature.js
  * @requires OpenLayers/Util.js
- *
+ */
+
+/**
  * Class: OpenLayers.Feature.Vector
  * Vector features use the OpenLayers.Geometry classes as geometry description.
  * They have an 'attributes' property, which is the data object, and a 'style'
@@ -57,6 +59,12 @@ OpenLayers.Feature.Vector = OpenLayers.Class(OpenLayers.Feature, {
      */
     style: null,
     
+    /**
+     * Property: renderIntent
+     * {String} rendering intent currently being used
+     */
+    renderIntent: "default",
+
     /** 
      * Constructor: OpenLayers.Feature.Vector
      * Create a vector feature. 
@@ -112,13 +120,34 @@ OpenLayers.Feature.Vector = OpenLayers.Class(OpenLayers.Feature, {
 
     /**
      * Method: onScreen
-     * HACK - we need to rewrite this for non-point geometry
+     * Determine whether the feature is within the map viewport.  This method
+     *     tests for an intersection between the geometry and the viewport
+     *     bounds.  If a more effecient but less precise geometry bounds
+     *     intersection is desired, call the method with the boundsOnly
+     *     parameter true.
+     *
+     * Parameters:
+     * boundsOnly - {Boolean} Only test whether a feature's bounds intersects
+     *     the viewport bounds.  Default is false.  If false, the feature's
+     *     geometry must intersect the viewport for onScreen to return true.
      * 
      * Returns:
-     * {Boolean} For now just returns null
+     * {Boolean} The feature is currently visible on screen (optionally
+     *     based on its bounds if boundsOnly is true).
      */
-    onScreen:function() {
-        return null;
+    onScreen:function(boundsOnly) {
+        var onScreen = false;
+        if(this.layer && this.layer.map) {
+            var screenBounds = this.layer.map.getExtent();
+            if(boundsOnly) {
+                var featureBounds = this.geometry.getBounds();
+                onScreen = screenBounds.intersectsBounds(featureBounds);
+            } else {
+                var screenPoly = screenBounds.toGeometry();
+                onScreen = screenPoly.intersects(this.geometry);
+            }
+        }    
+        return onScreen;
     },
     
     /**
@@ -256,6 +285,7 @@ OpenLayers.Feature.Vector = OpenLayers.Class(OpenLayers.Feature, {
  *  - hoverPointRadius: 1,
  *  - hoverPointUnit: "%",
  *  - pointerEvents: "visiblePainted"
+ *  - cursor: ""
  *
  * Other style properties that have no default values:
  *
@@ -265,6 +295,7 @@ OpenLayers.Feature.Vector = OpenLayers.Class(OpenLayers.Feature, {
  *  - graphicOpacity
  *  - graphicXOffset
  *  - graphicYOffset
+ *  - display
  */ 
 OpenLayers.Feature.Vector.style = {
     'default': {
@@ -282,7 +313,8 @@ OpenLayers.Feature.Vector.style = {
         pointRadius: 6,
         hoverPointRadius: 1,
         hoverPointUnit: "%",
-        pointerEvents: "visiblePainted"
+        pointerEvents: "visiblePainted",
+        cursor: ""
     },
     'select': {
         fillColor: "blue",
@@ -317,6 +349,7 @@ OpenLayers.Feature.Vector.style = {
         pointRadius: 6,
         hoverPointRadius: 1,
         hoverPointUnit: "%",
-        pointerEvents: "visiblePainted"
+        pointerEvents: "visiblePainted",
+        cursor: ""
     }
 };    

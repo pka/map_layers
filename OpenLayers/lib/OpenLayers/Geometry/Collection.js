@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Geometry.js
- *
+ */
+
+/**
  * Class: OpenLayers.Geometry.Collection
  * A Collection is exactly what it sounds like: A collection of different 
  * Geometries. These are stored in the local parameter <components> (which
@@ -177,7 +179,7 @@ OpenLayers.Geometry.Collection = OpenLayers.Class(OpenLayers.Geometry, {
         if(!(components instanceof Array)) {
             components = [components];
         }
-        for (var i = 0; i < components.length; i++) {
+        for(var i=components.length-1; i>=0; --i) {
             this.removeComponent(components[i]);
         }
     },
@@ -269,10 +271,11 @@ OpenLayers.Geometry.Collection = OpenLayers.Class(OpenLayers.Geometry, {
      *                 (lines, for example, will be twice as long, and polygons
      *                 will have four times the area).
      * origin - {<OpenLayers.Geometry.Point>} Point of origin for resizing
+     * ratio - {Float} Optional x:y ratio for resizing.  Default ratio is 1.
      */
-    resize: function(scale, origin) {
+    resize: function(scale, origin, ratio) {
         for(var i=0; i<this.components.length; ++i) {
-            this.components[i].resize(scale, origin);
+            this.components[i].resize(scale, origin, ratio);
         }
     },
 
@@ -288,7 +291,8 @@ OpenLayers.Geometry.Collection = OpenLayers.Class(OpenLayers.Geometry, {
      */
     equals: function(geometry) {
         var equivalent = true;
-        if(!geometry.CLASS_NAME || (this.CLASS_NAME != geometry.CLASS_NAME)) {
+        if(!geometry || !geometry.CLASS_NAME ||
+           (this.CLASS_NAME != geometry.CLASS_NAME)) {
             equivalent = false;
         } else if(!(geometry.components instanceof Array) ||
                   (geometry.components.length != this.components.length)) {
@@ -302,6 +306,48 @@ OpenLayers.Geometry.Collection = OpenLayers.Class(OpenLayers.Geometry, {
             }
         }
         return equivalent;
+    },
+
+    /**
+     * APIMethod: transform
+     * Reproject the components geometry from source to dest.
+     * 
+     * Parameters:
+     * source - {<OpenLayers.Projection>} 
+     * dest - {<OpenLayers.Projection>}
+     * 
+     * Returns:
+     * {<OpenLayers.Geometry>} 
+     */
+    transform: function(source, dest) {
+        if (source && dest) {
+            for (var i = 0; i < this.components.length; i++) {  
+                var component = this.components[i];
+                component.transform(source, dest);
+            }
+        }   
+        return this;
+    },
+
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        for(var i=0; i<this.components.length; ++ i) {
+            intersect = geometry.intersects(this.components[i]);
+            if(intersect) {
+                break;
+            }
+        }
+        return intersect;
     },
 
     /** @final @type String */

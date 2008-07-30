@@ -1,11 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Map.js
- * 
+ * @requires OpenLayers/Projection.js
+ */
+
+/**
  * Class: OpenLayers.Layer
  */
 OpenLayers.Layer = OpenLayers.Class({
@@ -28,14 +31,37 @@ OpenLayers.Layer = OpenLayers.Class({
      */
     div: null,
 
-    /** 
-     * Constant: EVENT_TYPES
-     * {Array(String)} Supported application event types
+    /**
+     * Property: opacity
+     * {Float} The layer's opacity. Float number between 0.0 and 1.0.
      */
-    EVENT_TYPES: [ "loadstart", "loadend", "loadcancel", "visibilitychanged"],
+    opacity: null,
+
+    /**
+     * Constant: EVENT_TYPES
+     * {Array(String)} Supported application event types.  Register a listener
+     *     for a particular event with the following syntax:
+     * (code)
+     * layer.events.register(type, obj, listener);
+     * (end)
+     *
+     * Listeners will be called with a reference to an event object.  The
+     *     properties of this event depends on exactly what happened.
+     *
+     * All event objects have at least the following properties:
+     *  - *object* {Object} A reference to layer.events.object.
+     *  - *element* {DOMElement} A reference to layer.events.element.
+     *
+     * Supported map event types:
+     *  - *loadstart* Triggered when layer loading starts.
+     *  - *loadend* Triggered when layer loading ends.
+     *  - *loadcancel* Triggered when layer loading is canceled.
+     *  - *visibilitychanged* Triggered when layer visibility is changed.
+     */
+    EVENT_TYPES: ["loadstart", "loadend", "loadcancel", "visibilitychanged"],
         
     /**
-     * APIProperty: events``
+     * APIProperty: events
      * {<OpenLayers.Events>}
      */
     events: null,
@@ -113,6 +139,15 @@ OpenLayers.Layer = OpenLayers.Class({
     options: null,
 
     /**
+     * APIProperty: eventListeners
+     * {Object} If set as an option at construction, the eventListeners
+     *     object will be registered with <OpenLayers.Events.on>.  Object
+     *     structure must be a listeners object as shown in the example for
+     *     the events.on method.
+     */
+    eventListeners: null,
+
+    /**
      * APIProperty: gutter
      * {Integer} Determines the width (in pixels) of the gutter around image
      *     tiles to ignore.  By setting this property to a non-zero value,
@@ -126,9 +161,11 @@ OpenLayers.Layer = OpenLayers.Class({
 
     /**
      * APIProperty: projection
-     * {String} Set in the layer options to override the default projection
-     *     string this layer - also set maxExtent, maxResolution, and units if
-     *     appropriate.
+     * {<OpenLayers.Projection>} or {<String>} Set in the layer options to
+     *     override the default projection string this layer - also set maxExtent,
+     *     maxResolution, and units if appropriate. Can be either a string or
+     *     an <OpenLayers.Projection> object when created -- will be converted
+     *     to an object when setMap is called if a string is passed.  
      */
     projection: null,    
     
@@ -220,6 +257,26 @@ OpenLayers.Layer = OpenLayers.Class({
      */
     wrapDateLine: false,
     
+    /**
+     * APIProperty: transitionEffect
+     * {String} The transition effect to use when the map is panned or
+     *     zoomed.  
+     *
+     * There are currently two supported values:
+     *  - *null* No transition effect (the default).
+     *  - *resize*  Existing tiles are resized on zoom to provide a visual
+     *    effect of the zoom having taken place immediately.  As the
+     *    new tiles become available, they are drawn over top of the
+     *    resized tiles.
+     */
+    transitionEffect: null,
+    
+    /**
+     * Property: SUPPORTED_TRANSITIONS
+     * {Array} An immutable (that means don't change it!) list of supported 
+     *     transitionEffect values.
+     */
+    SUPPORTED_TRANSITIONS: ['resize'],
     
     /**
      * Constructor: OpenLayers.Layer
@@ -238,13 +295,16 @@ OpenLayers.Layer = OpenLayers.Class({
 
             this.id = OpenLayers.Util.createUniqueID(this.CLASS_NAME + "_");
 
-            this.div = OpenLayers.Util.createDiv();
+            this.div = OpenLayers.Util.createDiv(this.id);
             this.div.style.width = "100%";
             this.div.style.height = "100%";
-            this.div.id = this.id;
 
             this.events = new OpenLayers.Events(this, this.div, 
                                                 this.EVENT_TYPES);
+            if(this.eventListeners instanceof Object) {
+                this.events.on(this.eventListeners);
+            }
+
         }
 
         if (this.wrapDateLine) {
@@ -268,14 +328,19 @@ OpenLayers.Layer = OpenLayers.Class({
         if (this.map != null) {
             this.map.removeLayer(this, setNewBaseLayer);
         }
+        this.projection = null;
         this.map = null;
         this.name = null;
         this.div = null;
         this.options = null;
 
         if (this.events) {
+            if(this.eventListeners) {
+                this.events.un(this.eventListeners);
+            }
             this.events.destroy();
         }
+        this.eventListeners = null;
         this.events = null;
     },
     
@@ -316,7 +381,10 @@ OpenLayers.Layer = OpenLayers.Class({
         if (newName != this.name) {
             this.name = newName;
             if (this.map != null) {
-                this.map.events.triggerEvent("changelayer");
+                this.map.events.triggerEvent("changelayer", {
+                    layer: this,
+                    property: "name"
+                });
             }
         }
     },    
@@ -411,7 +479,15 @@ OpenLayers.Layer = OpenLayers.Class({
             //  been set
             this.maxExtent = this.maxExtent || this.map.maxExtent;
             this.projection = this.projection || this.map.projection;
-            this.units = this.units || this.map.units;
+            
+            if (this.projection && typeof this.projection == "string") {
+                this.projection = new OpenLayers.Projection(this.projection);
+            }
+            
+            // Check the projection to see if we can get units -- if not, refer
+            // to properties.
+            this.units = this.projection.getUnits() ||
+                         this.units || this.map.units;
             
             this.initResolutions();
             
@@ -511,7 +587,10 @@ OpenLayers.Layer = OpenLayers.Class({
             this.display(visibility);
             this.redraw();
             if (this.map != null) {
-                this.map.events.triggerEvent("changelayer");
+                this.map.events.triggerEvent("changelayer", {
+                    layer: this,
+                    property: "visibility"
+                });
             }
             this.events.triggerEvent("visibilitychanged");
         }
@@ -525,8 +604,9 @@ OpenLayers.Layer = OpenLayers.Class({
      * display - {Boolean}
      */
     display: function(display) {
+        var inRange = this.calculateInRange();
         if (display != (this.div.style.display != "none")) {
-            this.div.style.display = (display) ? "block" : "none";
+            this.div.style.display = (display && inRange) ? "block" : "none";
         }
     },
 
@@ -557,7 +637,9 @@ OpenLayers.Layer = OpenLayers.Class({
         if (isBaseLayer != this.isBaseLayer) {
             this.isBaseLayer = isBaseLayer;
             if (this.map != null) {
-                this.map.events.triggerEvent("changelayer");
+                this.map.events.triggerEvent("changebaselayer", {
+                    layer: this
+                });
             }
         }
     },
@@ -605,6 +687,20 @@ OpenLayers.Layer = OpenLayers.Class({
             confProps[property] = this.options[property] || this.map[property];
         }
 
+        // Do not use the scales/resolutions at the map level if
+        // minScale/minResolution and maxScale/maxResolution are
+        // specified at the layer level
+        if (this.options.minScale != null &&
+            this.options.maxScale != null &&
+            this.options.scales == null) {
+            confProps.scales = null;
+        }
+        if (this.options.minResolution != null &&
+            this.options.maxResolution != null &&
+            this.options.resolutions == null) {
+            confProps.resolutions = null;
+        }
+
         // If numZoomLevels hasn't been set and the maxZoomLevel *has*, 
         //  then use maxZoomLevel to calculate numZoomLevels
         //
@@ -630,9 +726,7 @@ OpenLayers.Layer = OpenLayers.Class({
 
         } else {
           //maxResolution and numZoomLevels based calculation
-            
-            confProps.resolutions = [];
-            
+
             // determine maxResolution
             if (confProps.minScale) {
                 confProps.maxResolution = 
@@ -648,7 +742,8 @@ OpenLayers.Layer = OpenLayers.Class({
             // determine minResolution
             if (confProps.maxScale != null) {           
                 confProps.minResolution = 
-                    OpenLayers.Util.getResolutionFromScale(confProps.maxScale);
+                    OpenLayers.Util.getResolutionFromScale(confProps.maxScale, 
+                                                           confProps.units);
             } else if ( (confProps.minResolution == "auto") && 
                         (confProps.minExtent != null) ) {
                 var viewSize = this.map.getSize();
@@ -657,8 +752,10 @@ OpenLayers.Layer = OpenLayers.Class({
                 confProps.minResolution = Math.max(wRes, hRes);
             } 
 
-            // determine numZoomLevels
-            if (confProps.minResolution != null) {
+            // determine numZoomLevels if not already set on the layer
+            // this gives numZoomLevels assuming approximately base 2 scaling
+            if (confProps.minResolution != null &&
+                this.options.numZoomLevels == undefined) {
                 var ratio = confProps.maxResolution / confProps.minResolution;
                 confProps.numZoomLevels = 
                     Math.floor(Math.log(ratio) / Math.log(2)) + 1;
@@ -666,10 +763,25 @@ OpenLayers.Layer = OpenLayers.Class({
             
             // now we have numZoomLevels and maxResolution, 
             //  we can populate the resolutions array
+            confProps.resolutions = new Array(confProps.numZoomLevels);
+            var base = 2;
+            if(typeof confProps.minResolution == "number" &&
+               confProps.numZoomLevels > 1) {
+                /**
+                 * If maxResolution and minResolution are set (or related
+                 * scale properties), we calculate the base for exponential
+                 * scaling that starts at maxResolution and ends at
+                 * minResolution in numZoomLevels steps.
+                 */
+                base = Math.pow(
+                    (confProps.maxResolution / confProps.minResolution),
+                    (1 / (confProps.numZoomLevels - 1))
+                );
+            }
             for (var i=0; i < confProps.numZoomLevels; i++) {
-                var res = confProps.maxResolution / Math.pow(2, i)
-                confProps.resolutions.push(res);
-            }    
+                var res = confProps.maxResolution / Math.pow(base, i);
+                confProps.resolutions[i] = res;
+            }
         }
         
         //sort resolutions array ascendingly
@@ -709,7 +821,7 @@ OpenLayers.Layer = OpenLayers.Class({
      */
     getResolution: function() {
         var zoom = this.map.getZoom();
-        return this.resolutions[zoom];
+        return this.getResolutionForZoom(zoom);
     },
 
     /** 
@@ -764,6 +876,29 @@ OpenLayers.Layer = OpenLayers.Class({
     },
 
     /**
+     * APIMethod: getResolutionForZoom
+     * 
+     * Parameter:
+     * zoom - {Float}
+     * 
+     * Returns:
+     * {Float} A suitable resolution for the specified zoom.
+     */
+    getResolutionForZoom: function(zoom) {
+        zoom = Math.max(0, Math.min(zoom, this.resolutions.length - 1));
+        var resolution;
+        if(this.map.fractionalZoom) {
+            var low = Math.floor(zoom);
+            var high = Math.ceil(zoom);
+            resolution = this.resolutions[high] +
+                ((zoom-low) * (this.resolutions[low]-this.resolutions[high]));
+        } else {
+            resolution = this.resolutions[Math.round(zoom)];
+        }
+        return resolution;
+    },
+
+    /**
      * APIMethod: getZoomForResolution
      * 
      * Parameters:
@@ -782,22 +917,50 @@ OpenLayers.Layer = OpenLayers.Class({
      *     value and the 'closest' specification.
      */
     getZoomForResolution: function(resolution, closest) {
-        var diff;
-        var minDiff = Number.POSITIVE_INFINITY;
-        for(var i=0; i < this.resolutions.length; i++) {            
-            if (closest) {
-                diff = Math.abs(this.resolutions[i] - resolution);
-                if (diff > minDiff) {
-                    break;
+        var zoom;
+        if(this.map.fractionalZoom) {
+            var lowZoom = 0;
+            var highZoom = this.resolutions.length - 1;
+            var highRes = this.resolutions[lowZoom];
+            var lowRes = this.resolutions[highZoom];
+            var res;
+            for(var i=0; i<this.resolutions.length; ++i) {
+                res = this.resolutions[i];
+                if(res >= resolution) {
+                    highRes = res;
+                    lowZoom = i;
                 }
-                minDiff = diff;
-            } else {
-                if (this.resolutions[i] < resolution) {
+                if(res <= resolution) {
+                    lowRes = res;
+                    highZoom = i;
                     break;
                 }
             }
+            var dRes = highRes - lowRes;
+            if(dRes > 0) {
+                zoom = lowZoom + ((resolution - lowRes) / dRes);
+            } else {
+                zoom = lowZoom;
+            }
+        } else {
+            var diff;
+            var minDiff = Number.POSITIVE_INFINITY;
+            for(var i=0; i < this.resolutions.length; i++) {            
+                if (closest) {
+                    diff = Math.abs(this.resolutions[i] - resolution);
+                    if (diff > minDiff) {
+                        break;
+                    }
+                    minDiff = diff;
+                } else {
+                    if (this.resolutions[i] < resolution) {
+                        break;
+                    }
+                }
+            }
+            zoom = Math.max(0, i-1);
         }
-        return Math.max(0, i-1);
+        return zoom;
     },
     
     /**
@@ -834,6 +997,8 @@ OpenLayers.Layer = OpenLayers.Class({
 
     /**
      * APIMethod: getViewPortPxFromLonLat
+     * Returns a pixel location given a map location.  This method will return
+     *     fractional pixel values.
      * 
      * Parameters:
      * lonlat - {<OpenLayers.LonLat>}
@@ -848,8 +1013,8 @@ OpenLayers.Layer = OpenLayers.Class({
             var resolution = this.map.getResolution();
             var extent = this.map.getExtent();
             px = new OpenLayers.Pixel(
-                Math.round(1/resolution * (lonlat.lon - extent.left)),
-                Math.round(1/resolution * (extent.top - lonlat.lat))
+                (1/resolution * (lonlat.lon - extent.left)),
+                (1/resolution * (extent.top - lonlat.lat))
             );    
         }
         return px;

@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Popup.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Popup.Anchored
  * 
  * Inherits from:
@@ -38,9 +40,12 @@ OpenLayers.Popup.Anchored =
     * anchor - {Object} Object which must expose a 'size' <OpenLayers.Size> 
     *     and 'offset' <OpenLayers.Pixel> (generally an <OpenLayers.Icon>).
     * closeBox - {Boolean}
+    * closeBoxCallback - {Function} Function to be called on closeBox click.
     */
-    initialize:function(id, lonlat, size, contentHTML, anchor, closeBox) {
-        var newArguments = new Array(id, lonlat, size, contentHTML, closeBox);
+    initialize:function(id, lonlat, size, contentHTML, anchor, closeBox,
+                        closeBoxCallback) {
+        var newArguments = new Array(id, lonlat, size, contentHTML, closeBox,
+                                     closeBoxCallback);
         OpenLayers.Popup.prototype.initialize.apply(this, newArguments);
 
         this.anchor = (anchor != null) ? anchor 
@@ -48,27 +53,71 @@ OpenLayers.Popup.Anchored =
                                            offset: new OpenLayers.Pixel(0,0)};
     },
 
-    /** 
-     * Method: draw
+    /**
+     * APIMethod: destroy
+     */
+    destroy: function() {
+        this.anchor = null;
+        this.relativePosition = null;
+        
+        OpenLayers.Popup.prototype.destroy.apply(this, arguments);        
+    },
+
+    /**
+     * APIMethod: show
+     * Overridden from Popup since user might hide popup and then show() it 
+     *     in a new location (meaning we might want to update the relative
+     *     position on the show)
+     */
+    show: function() {
+        this.updatePosition();
+        OpenLayers.Popup.prototype.show.apply(this, arguments);
+    },
+
+    /**
+     * Method: moveTo
+     * Since the popup is moving to a new px, it might need also to be moved
+     *     relative to where the marker is. We first calculate the new 
+     *     relativePosition, and then we calculate the new px where we will 
+     *     put the popup, based on the new relative position. 
+     * 
+     *     If the relativePosition has changed, we must also call 
+     *     updateRelativePosition() to make any visual changes to the popup 
+     *     which are associated with putting it in a new relativePosition.
      * 
      * Parameters:
      * px - {<OpenLayers.Pixel>}
-     * 
-     * Returns: 
-     * {DOMElement} Reference to a div that contains the drawn popup.
      */
-    draw: function(px) {
-        if (px == null) {
-            if ((this.lonlat != null) && (this.map != null)) {
-                px = this.map.getLayerPxFromLonLat(this.lonlat);
-            }
-        }
-        
-        //calculate relative position
+    moveTo: function(px) {
+        var oldRelativePosition = this.relativePosition;
         this.relativePosition = this.calculateRelativePosition(px);
         
-        return OpenLayers.Popup.prototype.draw.apply(this, arguments);
+        var newPx = this.calculateNewPx(px);
+        
+        var newArguments = new Array(newPx);        
+        OpenLayers.Popup.prototype.moveTo.apply(this, newArguments);
+        
+        //if this move has caused the popup to change its relative position, 
+        // we need to make the appropriate cosmetic changes.
+        if (this.relativePosition != oldRelativePosition) {
+            this.updateRelativePosition();
+        }
     },
+
+    /**
+     * APIMethod: setSize
+     * 
+     * Parameters:
+     * size - {<OpenLayers.Size>}
+     */
+    setSize:function(size) { 
+        OpenLayers.Popup.prototype.setSize.apply(this, arguments);
+
+        if ((this.lonlat) && (this.map)) {
+            var px = this.map.getLayerPxFromLonLat(this.lonlat);
+            this.moveTo(px);
+        }
+    },  
     
     /** 
      * Method: calculateRelativePosition
@@ -90,37 +139,19 @@ OpenLayers.Popup.Anchored =
     }, 
 
     /**
-     * Method: moveTo
-     * Since the popup is moving to a new px, it might need also to be moved
-     *     relative to where the marker is.
+     * Method: updateRelativePosition
+     * The popup has been moved to a new relative location, so we may want to 
+     *     make some cosmetic adjustments to it. 
      * 
-     * Parameters:
-     * px - {<OpenLayers.Pixel>}
+     *     Note that in the classic Anchored popup, there is nothing to do 
+     *     here, since the popup looks exactly the same in all four positions.
+     *     Subclasses such as the AnchoredBubble and Framed, however, will 
+     *     want to do something special here.
      */
-    moveTo: function(px) {
-        this.relativePosition = this.calculateRelativePosition(px);
-        
-        var newPx = this.calculateNewPx(px);
-        
-        var newArguments = new Array(newPx);        
-        OpenLayers.Popup.prototype.moveTo.apply(this, newArguments);
+    updateRelativePosition: function() {
+        //to be overridden by subclasses
     },
-    
-    /**
-     * Method: setSize
-     * 
-     * Parameters:
-     * size - {<OpenLayers.Size>}
-     */
-    setSize:function(size) { 
-        OpenLayers.Popup.prototype.setSize.apply(this, arguments);
 
-        if ((this.lonlat) && (this.map)) {
-            var px = this.map.getLayerPxFromLonLat(this.lonlat);
-            this.moveTo(px);
-        }
-    },  
-    
     /** 
      * Method: calculateNewPx
      * 

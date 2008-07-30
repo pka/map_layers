@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
  
 /**
  * @requires OpenLayers/Tile.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Tile.WFS
  * Instances of OpenLayers.Tile.WFS are used to manage the image tiles
  * used by various layers.  Create a new image tile with the
@@ -27,6 +29,12 @@ OpenLayers.Tile.WFS = OpenLayers.Class(OpenLayers.Tile, {
      * {String} 
      */
     url: null,
+    
+    /** 
+     * Property: request 
+     * {OpenLayers.Ajax.Request} 
+     */ 
+    request: null,     
     
     /** TBD 3.0 - reorder the parameters to the init function to put URL 
      *             as last, so we can continue to call tile.initialize() 
@@ -57,6 +65,11 @@ OpenLayers.Tile.WFS = OpenLayers.Class(OpenLayers.Tile, {
         this.destroyAllFeatures();
         this.features = null;
         this.url = null;
+        if(this.request) {
+            this.request.abort();
+            //this.request.destroy();
+            this.request = null;
+        }
     },
 
     /** 
@@ -65,7 +78,6 @@ OpenLayers.Tile.WFS = OpenLayers.Class(OpenLayers.Tile, {
      *   be reused in a new location.
      */
     clear: function() {
-        OpenLayers.Tile.prototype.clear.apply(this, arguments);
         this.destroyAllFeatures();
     },
     
@@ -98,7 +110,10 @@ OpenLayers.Tile.WFS = OpenLayers.Class(OpenLayers.Tile, {
     * failure - {function}
     */
     loadFeaturesForRegion:function(success, failure) {
-        OpenLayers.loadURL(this.url, null, this, success);
+        if(this.request) {
+            this.request.abort();
+        }
+        this.request = OpenLayers.loadURL(this.url, null, this, success);
     },
     
     /**
@@ -112,15 +127,11 @@ OpenLayers.Tile.WFS = OpenLayers.Class(OpenLayers.Tile, {
     requestSuccess:function(request) {
         if (this.features) {
             var doc = request.responseXML;
-            
-            if (!doc || request.fileType!="XML") {
-                doc = OpenLayers.parseXMLString(request.responseText);
+            if (!doc || !doc.documentElement) {
+                doc = OpenLayers.Format.XML.prototype.read(request.responseText);
             }
             if (this.layer.vectorMode) {
-                var gml = new OpenLayers.Format.GML({
-                    'extractAttributes': this.layer.options.extractAttributes
-                });
-                this.layer.addFeatures(gml.read(doc));
+                this.layer.addFeatures(this.layer.formatObject.read(doc));
             } else {
                 var resultFeatures = OpenLayers.Ajax.getElementsByTagNameNS(
                     doc, "http://www.opengis.net/gml", "gml", "featureMember"
@@ -131,6 +142,10 @@ OpenLayers.Tile.WFS = OpenLayers.Class(OpenLayers.Tile, {
         if (this.events) {
             this.events.triggerEvent("loadend"); 
         }
+
+        //request produced with success, we can delete the request object.
+        //this.request.destroy();
+        this.request = null;
     },
 
     /**

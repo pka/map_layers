@@ -1,11 +1,13 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /*
  * @requires OpenLayers/Util.js
- *
+ */
+
+/*
  * Class: OpenLayers.Tile 
  * This is a class designed to designate a single tile, however
  *     it is explicitly designed to do relatively little. Tiles store 
@@ -23,7 +25,7 @@ OpenLayers.Tile = OpenLayers.Class({
      * Constant: EVENT_TYPES
      * {Array(String)} Supported application event types
      */
-    EVENT_TYPES: [ "loadstart", "loadend", "reload"],
+    EVENT_TYPES: [ "loadstart", "loadend", "reload", "unload"],
     
     /**
      * APIProperty: events
@@ -72,18 +74,44 @@ OpenLayers.Tile = OpenLayers.Class({
      */    
     position: null,
 
-    /** 
-     * Property: drawn 
-     * {Boolean} false
-     */
-    drawn: false,
-
     /**
      * Property: isLoading
      * {Boolean} Is the tile loading?
      */
     isLoading: false,
     
+    /**
+     * Property: isBackBuffer
+     * {Boolean} Is this tile a back buffer tile?
+     */
+    isBackBuffer: false,
+    
+    /**
+     * Property: lastRatio
+     * {Float} Used in transition code only.  This is the previous ratio
+     *     of the back buffer tile resolution to the map resolution.  Compared
+     *     with the current ratio to determine if zooming occurred.
+     */
+    lastRatio: 1,
+
+    /**
+     * Property: isFirstDraw
+     * {Boolean} Is this the first time the tile is being drawn?
+     *     This is used to force resetBackBuffer to synchronize
+     *     the backBufferTile with the foreground tile the first time
+     *     the foreground tile loads so that if the user zooms
+     *     before the layer has fully loaded, the backBufferTile for
+     *     tiles that have been loaded can be used.
+     */
+    isFirstDraw: true,
+        
+    /**
+     * Property: backBufferTile
+     * {<OpenLayers.Tile>} A clone of the tile used to create transition
+     *     effects when the tile is moved or changes resolution.
+     */
+    backBufferTile: null,
+        
     /** TBD 3.0 -- remove 'url' from the list of parameters to the constructor.
      *             there is no need for the base tile class to have a url.
      * 
@@ -99,15 +127,29 @@ OpenLayers.Tile = OpenLayers.Class({
      */   
     initialize: function(layer, position, bounds, url, size) {
         this.layer = layer;
-        this.position = position;
-        this.bounds = bounds;
+        this.position = position.clone();
+        this.bounds = bounds.clone();
         this.url = url;
-        this.size = size;
+        this.size = size.clone();
 
         //give the tile a unique id based on its BBOX.
         this.id = OpenLayers.Util.createUniqueID("Tile_");
         
         this.events = new OpenLayers.Events(this, null, this.EVENT_TYPES);
+    },
+
+    /**
+     * Method: unload
+     * Call immediately before destroying if you are listening to tile
+     * events, so that counters are properly handled if tile is still
+     * loading at destroy-time. Will only fire an event if the tile is
+     * still loading.
+     */
+    unload: function() {
+       if (this.isLoading) { 
+           this.isLoading = false; 
+           this.events.triggerEvent("unload"); 
+       }
     },
     
     /** 
@@ -115,6 +157,13 @@ OpenLayers.Tile = OpenLayers.Class({
      * Nullify references to prevent circular references and memory leaks.
      */
     destroy:function() {
+        if (OpenLayers.Util.indexOf(this.layer.SUPPORTED_TRANSITIONS, 
+                this.layer.transitionEffect) != -1) {
+            this.layer.events.unregister("loadend", this, this.resetBackBuffer);
+            this.events.unregister('loadend', this, this.resetBackBuffer);            
+        } else {
+            this.events.unregister('loadend', this, this.showTile);
+        }
         this.layer  = null;
         this.bounds = null;
         this.size = null;
@@ -122,6 +171,36 @@ OpenLayers.Tile = OpenLayers.Class({
         
         this.events.destroy();
         this.events = null;
+        
+        /* clean up the backBufferTile if it exists */
+        if (this.backBufferTile) {
+            this.backBufferTile.destroy();
+            this.backBufferTile = null;
+        }
+    },
+    
+    /**
+     * Method: clone
+     *
+     * Parameters:
+     * obj - {<OpenLayers.Tile>} The tile to be cloned
+     *
+     * Returns:
+     * {<OpenLayers.Tile>} An exact clone of this <OpenLayers.Tile>
+     */
+    clone: function (obj) {
+        if (obj == null) {
+            obj = new OpenLayers.Tile(this.layer, 
+                                      this.position, 
+                                      this.bounds, 
+                                      this.url, 
+                                      this.size);
+        } 
+        
+        // catch any randomly tagged-on properties
+        OpenLayers.Util.applyDefaults(obj, this);
+        
+        return obj;
     },
 
     /**
@@ -136,28 +215,56 @@ OpenLayers.Tile = OpenLayers.Class({
      *     depend on the return to know if they should draw or not.
      */
     draw: function() {
-        
-        //clear tile's contents and mark as not drawn
-        this.clear();
-        
         var maxExtent = this.layer.maxExtent;
         var withinMaxExtent = (maxExtent &&
                                this.bounds.intersectsBounds(maxExtent, false));
  
-        var mapExtent = this.layer.map.getExtent();
-        var withinMapExtent = (mapExtent &&
-                               this.bounds.intersectsBounds(mapExtent, false));
-         
-        // There are two cases where we *wouldn't* want to draw the tile:
-        //  
-        // 1) If the tile is outside its layer's maxExtent
-        // 2) When the layer's buffer is 0, if the tile is outside the map's 
-        //    extent (out of view)
-        //
-        // ...what we return is the opposite of the above conditions :-)
-        //
-        return ( (withinMaxExtent || this.layer.displayOutsideMaxExtent) &&
-                 (withinMapExtent || (this.layer.buffer != 0)) );
+        // The only case where we *wouldn't* want to draw the tile is if the 
+        // tile is outside its layer's maxExtent.
+        var drawTile = (withinMaxExtent || this.layer.displayOutsideMaxExtent);
+
+        if (OpenLayers.Util.indexOf(this.layer.SUPPORTED_TRANSITIONS, this.layer.transitionEffect) != -1) {
+            if (drawTile) {
+                //we use a clone of this tile to create a double buffer for visual
+                //continuity.  The backBufferTile is used to create transition
+                //effects while the tile in the grid is repositioned and redrawn
+                if (!this.backBufferTile) {
+                    this.backBufferTile = this.clone();
+                    this.backBufferTile.hide();
+                    // this is important.  It allows the backBuffer to place itself
+                    // appropriately in the DOM.  The Image subclass needs to put
+                    // the backBufferTile behind the main tile so the tiles can
+                    // load over top and display as soon as they are loaded.
+                    this.backBufferTile.isBackBuffer = true;
+                    
+                    // potentially end any transition effects when the tile loads
+                    this.events.register('loadend', this, this.resetBackBuffer);
+                    
+                    // clear transition back buffer tile only after all tiles in
+                    // this layer have loaded to avoid visual glitches
+                    this.layer.events.register("loadend", this, this.resetBackBuffer);
+                }
+                // run any transition effects
+                this.startTransition();
+            } else {
+                // if we aren't going to draw the tile, then the backBuffer should
+                // be hidden too!
+                if (this.backBufferTile) {
+                    this.backBufferTile.clear();
+                }
+            }
+        } else {
+            if (drawTile && this.isFirstDraw) {
+                this.events.register('loadend', this, this.showTile);
+                this.isFirstDraw = false;
+            }   
+        }    
+        this.shouldDraw = drawTile;
+        
+        //clear tile's contents and mark as not drawn
+        this.clear();
+        
+        return drawTile;
     },
     
     /** 
@@ -175,7 +282,6 @@ OpenLayers.Tile = OpenLayers.Class({
             redraw = true;
         }
 
-        this.clear();
         this.bounds = bounds.clone();
         this.position = position.clone();
         if (redraw) {
@@ -186,10 +292,10 @@ OpenLayers.Tile = OpenLayers.Class({
     /** 
      * Method: clear
      * Clear the tile of any bounds/position-related data so that it can 
-     *     be reused in a new location.
+     *     be reused in a new location. To be implemented by subclasses.
      */
     clear: function() {
-        this.drawn = false;
+        // to be implemented by subclasses
     },
     
     /**   
@@ -205,12 +311,9 @@ OpenLayers.Tile = OpenLayers.Class({
      * bounds - {<OpenLayers.Bounds>} 
      */
     getBoundsFromBaseLayer: function(position) {
-        OpenLayers.Console.warn("You are using the 'reproject' option " +
-          "on the " + this.layer.name + " layer. This option is deprecated: " +
-          "its use was designed to support displaying data over commercial " + 
-          "basemaps, but that functionality should now be achieved by using " +
-          "Spherical Mercator support. More information is available from " +
-          "http://trac.openlayers.org/wiki/SphericalMercator."); 
+        var msg = OpenLayers.i18n('reprojectDeprecated',
+                                              {'layerName':this.layer.name});
+        OpenLayers.Console.warn(msg);
         var topLeft = this.layer.map.getLonLatFromLayerPx(position); 
         var bottomRightPx = position.clone();
         bottomRightPx.x += this.size.w;
@@ -226,12 +329,77 @@ OpenLayers.Tile = OpenLayers.Class({
                 bottomRight.lon = 180+bottomRight.lon+180;
             }        
         }
-        bounds = new OpenLayers.Bounds(topLeft.lon, 
+        var bounds = new OpenLayers.Bounds(topLeft.lon, 
                                        bottomRight.lat, 
                                        bottomRight.lon, 
                                        topLeft.lat);  
         return bounds;
     },        
-
+    
+    /** 
+     * Method: startTransition
+     * Prepare the tile for a transition effect.  To be
+     *     implemented by subclasses.
+     */
+    startTransition: function() {},
+    
+    /** 
+     * Method: resetBackBuffer
+     * Triggered by two different events, layer loadend, and tile loadend.
+     *     In any of these cases, we check to see if we can hide the 
+     *     backBufferTile yet and update its parameters to match the 
+     *     foreground tile.
+     *
+     * Basic logic:
+     *  - If the backBufferTile hasn't been drawn yet, reset it
+     *  - If layer is still loading, show foreground tile but don't hide
+     *    the backBufferTile yet
+     *  - If layer is done loading, reset backBuffer tile and show 
+     *    foreground tile
+     */
+    resetBackBuffer: function() {
+        this.showTile();
+        if (this.backBufferTile && 
+            (this.isFirstDraw || !this.layer.numLoadingTiles)) {
+            this.isFirstDraw = false;
+            // check to see if the backBufferTile is within the max extents
+            // before rendering it 
+            var maxExtent = this.layer.maxExtent;
+            var withinMaxExtent = (maxExtent &&
+                                   this.bounds.intersectsBounds(maxExtent, false));
+            if (withinMaxExtent) {
+                this.backBufferTile.position = this.position;
+                this.backBufferTile.bounds = this.bounds;
+                this.backBufferTile.size = this.size;
+                this.backBufferTile.imageSize = this.layer.imageSize || this.size;
+                this.backBufferTile.imageOffset = this.layer.imageOffset;
+                this.backBufferTile.resolution = this.layer.getResolution();
+                this.backBufferTile.renderTile();
+            }
+        }
+    },
+        
+    /** 
+     * Method: showTile
+     * Show the tile only if it should be drawn.
+     */
+    showTile: function() { 
+        if (this.shouldDraw) {
+            this.show();
+        }
+    },
+    
+    /** 
+     * Method: show
+     * Show the tile.  To be implemented by subclasses.
+     */
+    show: function() { },
+    
+    /** 
+     * Method: hide
+     * Hide the tile.  To be implemented by subclasses.
+     */
+    hide: function() { },
+    
     CLASS_NAME: "OpenLayers.Tile"
 });

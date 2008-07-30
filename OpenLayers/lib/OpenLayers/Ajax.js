@@ -1,6 +1,6 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 OpenLayers.ProxyHost = "";
@@ -34,7 +34,7 @@ OpenLayers.ProxyHost = "";
 * @param {} request
 */
 OpenLayers.nullHandler = function(request) {
-    alert("Unhandled request return " + request.statusText);
+    alert(OpenLayers.i18n("unhandledRequest", {'statusText':request.statusText}));
 };
 
 /** 
@@ -45,17 +45,19 @@ OpenLayers.nullHandler = function(request) {
  * uri - {String} URI of source doc
  * params - {String} Params on get (doesnt seem to work)
  * caller - {Object} object which gets callbacks
- * onComplete - {Function} callback for success
- * onFailure - {Function} callback for failure
+ * onComplete - {Function} Optional callback for success.  The callback
+ *     will be called with this set to caller and will receive the request
+ *     object as an argument.
+ * onFailure - {Function} Optional callback for failure.  In the event of
+ *     a failure, the callback will be called with this set to caller and will
+ *     receive the request object as an argument.
  *
- * Both callbacks optional (though silly)
+ * Returns:
+ * {XMLHttpRequest}  The request object.  To abort loading, call
+ *     request.abort().
  */
 OpenLayers.loadURL = function(uri, params, caller,
                                   onComplete, onFailure) {
-
-    if (OpenLayers.ProxyHost && OpenLayers.String.startsWith(uri, "http")) {
-        uri = OpenLayers.ProxyHost + escape(uri);
-    }
 
     var success = (onComplete) ? OpenLayers.Function.bind(onComplete, caller)
                                 : OpenLayers.nullHandler;
@@ -64,13 +66,16 @@ OpenLayers.loadURL = function(uri, params, caller,
                            : OpenLayers.nullHandler;
 
     // from prototype.js
-    new OpenLayers.Ajax.Request(uri, 
-                     {   method: 'get', 
-                         parameters: params,
-                         onComplete: success, 
-                         onFailure: failure
-                      }
-                     );
+    var request = new OpenLayers.Ajax.Request(
+        uri, 
+        {
+            method: 'get', 
+            parameters: params,
+            onComplete: success, 
+            onFailure: failure
+        }
+    );
+    return request.transport;
 };
 
 /** 
@@ -135,9 +140,9 @@ OpenLayers.Ajax = {
      */
     getTransport: function() {
         return OpenLayers.Util.Try(
-            function() {return new ActiveXObject('Msxml2.XMLHTTP')},
-            function() {return new ActiveXObject('Microsoft.XMLHTTP')},
-            function() {return new XMLHttpRequest()}
+            function() {return new XMLHttpRequest();},
+            function() {return new ActiveXObject('Msxml2.XMLHTTP');},
+            function() {return new ActiveXObject('Microsoft.XMLHTTP');}
         ) || false;
     },
 
@@ -167,10 +172,22 @@ OpenLayers.Ajax.Responders = {
      * responderToAdd - {?}
      */
     register: function(responderToAdd) {
-      for (var i = 0; i < this.responders.length; i++)
-          if (responderToAdd == this.responders[i])
-              return;
-      this.responders.push(responderToAdd);
+        for (var i = 0; i < this.responders.length; i++){
+            if (responderToAdd == this.responders[i]){
+                return;
+            }
+        }
+        this.responders.push(responderToAdd);
+    },
+
+    /**
+     * Method: unregister
+     *  
+     * Parameters:
+     * responderToRemove - {?}
+     */
+    unregister: function(responderToRemove) {
+        OpenLayers.Util.removeItem(this.reponders, responderToRemove);
     },
 
     /**
@@ -180,9 +197,8 @@ OpenLayers.Ajax.Responders = {
      * callback - {?}
      * request - {?}
      * transport - {?}
-     * json - {?}
      */
-    dispatch: function(callback, request, transport, json) {
+    dispatch: function(callback, request, transport) {
         var responder;
         for (var i = 0; i < this.responders.length; i++) {
             responder = this.responders[i];
@@ -191,7 +207,7 @@ OpenLayers.Ajax.Responders = {
                 typeof responder[callback] == 'function') {
                 try {
                     responder[callback].apply(responder, 
-                                              [request, transport, json]);
+                                              [request, transport]);
                 } catch (e) {}
             }
         }
@@ -215,50 +231,33 @@ OpenLayers.Ajax.Responders.register({
 });
 
 /**
- * Namespace: OpenLayers.Ajax.Base
- * {Object}
+ * Class: OpenLayers.Ajax.Base
  */
-OpenLayers.Ajax.Base = function() {};
-OpenLayers.Ajax.Base.prototype = {
-
+OpenLayers.Ajax.Base = OpenLayers.Class({
+      
     /**
-     * Function: setOptions
+     * Constructor: OpenLayers.Ajax.Base
      * 
-     * Parameters:
+     * Parameters: 
      * options - {Object}
      */
-    setOptions: function(options) {
+    initialize: function(options) {
         this.options = {
-            'method': 'post',
-            'asynchronous': true,
-            'parameters': ''
+            method:       'post',
+            asynchronous: true,
+            contentType:  'application/xml',
+            parameters:   ''
         };
         OpenLayers.Util.extend(this.options, options || {});
-    },
-
-    /**
-     * Function: responseIsSuccess
-     * 
-     * Returns:
-     * {Boolean}
-     */
-    responseIsSuccess: function() {
-        return this.transport.status == undefined || 
-               this.transport.status == 0 || 
-               (this.transport.status >= 200 && this.transport.status < 300);
-    },
-
-    /**
-     * Function: responseIsFailure
-     * 
-     * Returns:
-     * {Boolean}
-     */
-    responseIsFailure: function() {
-        return !this.responseIsSuccess();
+        
+        this.options.method = this.options.method.toLowerCase();
+        
+        if (typeof this.options.parameters == 'string') {
+            this.options.parameters = 
+                OpenLayers.Util.getParameters(this.options.parameters);
+        }
     }
-};
-
+});
 
 /**
  * Class: OpenLayers.Ajax.Request
@@ -267,17 +266,29 @@ OpenLayers.Ajax.Base.prototype = {
  *  - <OpenLayers.Ajax.Base>
  */
 OpenLayers.Ajax.Request = OpenLayers.Class(OpenLayers.Ajax.Base, {
+
+    /**
+     * Property: _complete
+     *
+     * {Boolean}
+     */
+    _complete: false,
       
-      /**
-       * Constructor: OpenLayers.Ajax.Request
-       * 
-       * Parameters: 
-       * url - {String}
-       * options - {Object}
-       */
+    /**
+     * Constructor: OpenLayers.Ajax.Request
+     * 
+     * Parameters: 
+     * url - {String}
+     * options - {Object}
+     */
     initialize: function(url, options) {
+        OpenLayers.Ajax.Base.prototype.initialize.apply(this, [options]);
+        
+        if (OpenLayers.ProxyHost && OpenLayers.String.startsWith(url, "http")) {
+            url = OpenLayers.ProxyHost + encodeURIComponent(url);
+        }
+        
         this.transport = OpenLayers.Ajax.getTransport();
-        this.setOptions(options);
         this.request(url);
     },
 
@@ -288,81 +299,61 @@ OpenLayers.Ajax.Request = OpenLayers.Class(OpenLayers.Ajax.Base, {
      * url - {String}
      */
     request: function(url) {
-        var parameters = this.options.parameters || '';
-        if (parameters.length > 0) parameters += '&_=';
-    
+        this.url = url;
+        this.method = this.options.method;
+        var params = OpenLayers.Util.extend({}, this.options.parameters);
+        
+        if (this.method != 'get' && this.method != 'post') {
+            // simulate other verbs over post
+            params['_method'] = this.method;
+            this.method = 'post';
+        }
+
+        this.parameters = params;        
+        
+        if (params = OpenLayers.Util.getParameterString(params)) {
+            // when GET, append parameters to URL
+            if (this.method == 'get') {
+                this.url += ((this.url.indexOf('?') > -1) ? '&' : '?') + params;
+            } else if (/Konqueror|Safari|KHTML/.test(navigator.userAgent)) {
+                params += '&_=';
+            }
+        }
         try {
-            this.url = url;
-            if (this.options.method == 'get' && parameters.length > 0) {
-               this.url += (this.url.match(/\?/) ? '&' : '?') + parameters;
+            var response = new OpenLayers.Ajax.Response(this);
+            if (this.options.onCreate) {
+                this.options.onCreate(response);
             }
             
             OpenLayers.Ajax.Responders.dispatch('onCreate', 
                                                 this, 
-                                                this.transport);
+                                                response);
     
-            this.transport.open(this.options.method, 
+            this.transport.open(this.method.toUpperCase(), 
                                 this.url,
                                 this.options.asynchronous);
     
             if (this.options.asynchronous) {
-                this.transport.onreadystatechange = 
-                    OpenLayers.Function.bind(this.onStateChange, this);
-                
-                setTimeout(OpenLayers.Function.bind(
-                    (function() {this.respondToReadyState(1)}),this), 10
-                );
+                window.setTimeout(
+                    OpenLayers.Function.bind(this.respondToReadyState, this, 1),
+                    10);
             }
-    
+            
+            this.transport.onreadystatechange = 
+                OpenLayers.Function.bind(this.onStateChange, this);    
             this.setRequestHeaders();
     
-            var body = this.options.postBody ? this.options.postBody 
-                                             : parameters;
-            this.transport.send(this.options.method == 'post' ? body : null);
+            this.body =  this.method == 'post' ?
+                (this.options.postBody || params) : null;
+            this.transport.send(this.body);
     
             // Force Firefox to handle ready state 4 for synchronous requests
             if (!this.options.asynchronous && 
                 this.transport.overrideMimeType) {
-                
                 this.onStateChange();
             }
-    
         } catch (e) {
             this.dispatchException(e);
-        }
-    },
-     
-    /**
-     * Method: setRequestHeaders
-     */
-    setRequestHeaders: function() {
-        var requestHeaders = [
-            'X-Requested-With',
-            'XMLHttpRequest',
-            'X-Prototype-Version',
-            'OpenLayers'
-        ];
-    
-        if (this.options.method == 'post' && !this.options.postBody) {
-            requestHeaders.push('Content-type',
-                                'application/x-www-form-urlencoded');
-    
-            // Force "Connection: close" for Mozilla browsers to work around
-            // a bug where XMLHttpReqeuest sends an incorrect Content-length
-            // header. See Mozilla Bugzilla #246651.
-            if (this.transport.overrideMimeType) {
-                requestHeaders.push('Connection', 'close');
-            }
-        }
-    
-        if (this.options.requestHeaders) {
-            requestHeaders.push.apply(requestHeaders, 
-                                      this.options.requestHeaders);
-        }
-          
-        for (var i = 0; i < requestHeaders.length; i += 2) {
-            this.transport.setRequestHeader(requestHeaders[i], 
-                                            requestHeaders[i+1]);
         }
     },
 
@@ -371,46 +362,76 @@ OpenLayers.Ajax.Request = OpenLayers.Class(OpenLayers.Ajax.Base, {
      */
     onStateChange: function() {
         var readyState = this.transport.readyState;
-        if (readyState != 1) {
-          this.respondToReadyState(this.transport.readyState);
+        if (readyState > 1 && !((readyState == 4) && this._complete)) {
+            this.respondToReadyState(this.transport.readyState);
         }
     },
-
-    /** 
-     * Method: header
-     * 
-     * Returns:
-     * {?}
-     */
-    header: function(name) {
-        try {
-            return this.transport.getResponseHeader(name);
-        } catch (e) {}
-    },
-
-    /** 
-     * Method: evalJSON
-     * 
-     * Returns:
-     * {?}
-     */
-    evalJSON: function() {
-        try {
-            return eval(this.header('X-JSON'));
-        } catch (e) {}
-    },
-
+     
     /**
-     * Method: evalResponse
-     * 
-     * Returns: 
-     * {?}
+     * Method: setRequestHeaders
      */
-    evalResponse: function() {
+    setRequestHeaders: function() {
+        var headers = {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'text/javascript, text/html, application/xml, text/xml, */*',
+            'OpenLayers': true
+        };
+
+        if (this.method == 'post') {
+            headers['Content-type'] = this.options.contentType +
+                (this.options.encoding ? '; charset=' + this.options.encoding : '');
+    
+            /* Force "Connection: close" for older Mozilla browsers to work
+             * around a bug where XMLHttpRequest sends an incorrect
+             * Content-length header. See Mozilla Bugzilla #246651.
+             */
+            if (this.transport.overrideMimeType &&
+                (navigator.userAgent.match(/Gecko\/(\d{4})/) || [0,2005])[1] < 2005) {
+                headers['Connection'] = 'close';
+            }
+        }
+        // user-defined headers
+        if (typeof this.options.requestHeaders == 'object') {    
+            var extras = this.options.requestHeaders;
+            
+            if (typeof extras.push == 'function') {
+                for (var i = 0, length = extras.length; i < length; i += 2) {
+                    headers[extras[i]] = extras[i+1];
+                }
+            } else {
+                for (var i in extras) {
+                    headers[i] = pair[i];
+                }
+            }
+        }
+        
+        for (var name in headers) {
+            this.transport.setRequestHeader(name, headers[name]);
+        }
+    },
+    
+    /**
+     * Method: success
+     *
+     * Returns:
+     * {Boolean} - 
+     */
+    success: function() {
+        var status = this.getStatus();
+        return !status || (status >=200 && status < 300);
+    },
+    
+    /**
+     * Method: getStatus
+     *
+     * Returns:
+     * {Integer} - Status
+     */
+    getStatus: function() {
         try {
-            return eval(this.transport.responseText);
+            return this.transport.status || 0;
         } catch (e) {
-            this.dispatchException(e);
+            return 0;
         }
     },
 
@@ -421,62 +442,101 @@ OpenLayers.Ajax.Request = OpenLayers.Class(OpenLayers.Ajax.Base, {
      * readyState - {?}
      */
     respondToReadyState: function(readyState) {
-        var event = OpenLayers.Ajax.Request.Events[readyState];
-        var transport = this.transport, json = this.evalJSON();
+        var state = OpenLayers.Ajax.Request.Events[readyState];
+        var response = new OpenLayers.Ajax.Response(this);
     
-        if (event == 'Complete') {
+        if (state == 'Complete') {
             try {
-                var responseSuccess = this.responseIsSuccess() ? 'Success'
-                                                                : 'Failure';
-                                                                 
-                (this.options['on' + this.transport.status] ||
-                 this.options['on' + responseSuccess] ||
-                 OpenLayers.Ajax.emptyFunction)(transport, json);
+                this._complete = true;
+                (this.options['on' + response.status] ||
+                    this.options['on' + (this.success() ? 'Success' : 'Failure')] ||
+                    OpenLayers.Ajax.emptyFunction)(response);
             } catch (e) {
                 this.dispatchException(e);
             }
     
-            var contentType = this.header('Content-type') || '';
-            if (contentType.match(/^text\/javascript/i)) {
-                this.evalResponse();
-            }
+            var contentType = response.getHeader('Content-type');
         }
     
         try {
-            (this.options['on' + event] || 
-             OpenLayers.Ajax.emptyFunction)(transport, json);
-             OpenLayers.Ajax.Responders.dispatch('on' + event, 
+            (this.options['on' + state] || 
+             OpenLayers.Ajax.emptyFunction)(response);
+             OpenLayers.Ajax.Responders.dispatch('on' + state, 
                                                  this, 
-                                                 transport, 
-                                                 json);
+                                                 response);
         } catch (e) {
             this.dispatchException(e);
         }
     
-        // Avoid memory leak in MSIE: clean up the oncomplete event handler
-        if (event == 'Complete') {
+        if (state == 'Complete') {
+            // avoid memory leak in MSIE: clean up
             this.transport.onreadystatechange = OpenLayers.Ajax.emptyFunction;
+        }
+    },
+    
+    /**
+     * Method: getHeader
+     * 
+     * Parameters:
+     * name - {String} Header name
+     *
+     * Returns:
+     * {?} - response header for the given name
+     */
+    getHeader: function(name) {
+        try {
+            return this.transport.getResponseHeader(name);
+        } catch (e) {
+            return null;
         }
     },
 
     /**
      * Method: dispatchException
+     * If the optional onException function is set, execute it
+     * and then dispatch the call to any other listener registered
+     * for onException.
+     * 
+     * If no optional onException function is set, we suspect that
+     * the user may have also not used
+     * OpenLayers.Ajax.Responders.register to register a listener
+     * for the onException call.  To make sure that something
+     * gets done with this exception, only dispatch the call if there
+     * are listeners.
+     *
+     * If you explicitly want to swallow exceptions, set
+     * request.options.onException to an empty function (function(){})
+     * or register an empty function with <OpenLayers.Ajax.Responders>
+     * for onException.
      * 
      * Parameters:
      * exception - {?}
      */
     dispatchException: function(exception) {
-        if (this.options.onException) {
-            this.options.onException(this, exception);
+        var handler = this.options.onException;
+        if(handler) {
+            // call options.onException and alert any other listeners
+            handler(this, exception);
+            OpenLayers.Ajax.Responders.dispatch('onException', this, exception);
         } else {
-            // if we get here, Responders.dispatch('onException') will never
-            // be called. too bad. we should probably take out the Responders
-            // stuff anyway.
-            throw exception;
+            // check if there are any other listeners
+            var listener = false;
+            var responders = OpenLayers.Ajax.Responders.responders;
+            for (var i = 0; i < responders.length; i++) {
+                if(responders[i].onException) {
+                    listener = true;
+                    break;
+                }
+            }
+            if(listener) {
+                // call all listeners
+                OpenLayers.Ajax.Responders.dispatch('onException', this, exception);
+            } else {
+                // let the exception through
+                throw exception;
+            }
         }
-        OpenLayers.Ajax.Responders.dispatch('onException', this, exception);
     }
-    
 });
 
 /** 
@@ -485,6 +545,88 @@ OpenLayers.Ajax.Request = OpenLayers.Class(OpenLayers.Ajax.Base, {
  */
 OpenLayers.Ajax.Request.Events =
   ['Uninitialized', 'Loading', 'Loaded', 'Interactive', 'Complete'];
+
+/**
+ * Class: OpenLayers.Ajax.Response
+ */
+OpenLayers.Ajax.Response = OpenLayers.Class({
+
+    /**
+     * Property: status
+     *
+     * {Integer}
+     */
+    status: 0,
+    
+
+    /**
+     * Property: statusText
+     *
+     * {String}
+     */
+    statusText: '',
+      
+    /**
+     * Constructor: OpenLayers.Ajax.Response
+     * 
+     * Parameters: 
+     * request - {Object}
+     */
+    initialize: function(request) {
+        this.request = request;
+        var transport = this.transport = request.transport,
+            readyState = this.readyState = transport.readyState;
+        
+        if ((readyState > 2 &&
+            !(!!(window.attachEvent && !window.opera))) ||
+            readyState == 4) {
+            this.status       = this.getStatus();
+            this.statusText   = this.getStatusText();
+            this.responseText = transport.responseText == null ?
+                '' : String(transport.responseText);
+        }
+        
+        if(readyState == 4) {
+            var xml = transport.responseXML;
+            this.responseXML  = xml === undefined ? null : xml;
+        }
+    },
+    
+    /**
+     * Method: getStatus
+     */
+    getStatus: OpenLayers.Ajax.Request.prototype.getStatus,
+    
+    /**
+     * Method: getStatustext
+     *
+     * Returns:
+     * {String} - statusText
+     */
+    getStatusText: function() {
+        try {
+            return this.transport.statusText || '';
+        } catch (e) {
+            return '';
+        }
+    },
+    
+    /**
+     * Method: getHeader
+     */
+    getHeader: OpenLayers.Ajax.Request.prototype.getHeader,
+    
+    /** 
+     * Method: getResponseHeader
+     *
+     * Returns:
+     * {?} - response header for given name
+     */
+    getResponseHeader: function(name) {
+        return this.transport.getResponseHeader(name);
+    }
+});
+
 
 /**
  * Function: getElementsByTagNameNS
@@ -524,6 +666,6 @@ OpenLayers.Ajax.getElementsByTagNameNS  = function(parentnode, nsuri,
  */
 OpenLayers.Ajax.serializeXMLToString = function(xmldom) {
     var serializer = new XMLSerializer();
-    data = serializer.serializeToString(xmldom);
+    var data = serializer.serializeToString(xmldom);
     return data;
-}
+};

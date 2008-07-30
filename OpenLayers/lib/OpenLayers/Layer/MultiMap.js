@@ -1,18 +1,20 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Layer/EventPane.js
  * @requires OpenLayers/Layer/FixedZoomLevels.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Layer.MultiMap
  * Note that MultiMap does not fully support the sphericalMercator
  * option. See Ticket #953 for more details.
  * 
  * Inherits from:
- *  - <OpenLayers.Layers.EventPane>
- *  - <OpenLayers.Layers.FixedZoomLevels>
+ *  - <OpenLayers.Layer.EventPane>
+ *  - <OpenLayers.Layer.FixedZoomLevels>
  */
 OpenLayers.Layer.MultiMap = OpenLayers.Class(
   OpenLayers.Layer.EventPane, OpenLayers.Layer.FixedZoomLevels, {
@@ -95,23 +97,9 @@ OpenLayers.Layer.MultiMap = OpenLayers.Class(
      *          it working.
      */
     getWarningHTML:function() {
-
-        var html = "";
-        html += "The MM Layer was unable to load correctly.<br>";
-        html += "<br>";
-        html += "To get rid of this message, select a new BaseLayer "
-        html += "in the layer switcher in the upper-right corner.<br>";
-        html += "<br>";
-        html += "Most likely, this is because the MM library";
-        html += " script was either not correctly included.<br>";
-        html += "<br>";
-        html += "Demmlopers: For help getting this working correctly, ";
-        html += "<a href='http://trac.openlayers.org/wiki/MultiMap' "
-        html +=  "target='_blank'>";
-        html +=     "click here";
-        html += "</a>";
-
-        return html;
+        return OpenLayers.i18n(
+            "getLayerWarning", {'layerType':"MM", 'layerLib':"MultiMap"}
+        );
     },
 
 

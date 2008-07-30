@@ -1,16 +1,18 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Util.js
  * @requires OpenLayers/Marker.js
  * @requires OpenLayers/Popup/AnchoredBubble.js
- *
+ */
+
+/**
  * Class: OpenLayers.Feature
  * Features are combinations of geography and attributes. The OpenLayers.Feature
- * class specifically combines a marker and a lonlat.
+ *     class specifically combines a marker and a lonlat.
  */
 OpenLayers.Feature = OpenLayers.Class({
 
@@ -159,6 +161,10 @@ OpenLayers.Feature = OpenLayers.Class({
      *  
      *  If no 'lonlat' is set, returns null. 
      *  If no this.marker has been created, no anchor is sent.
+     *
+     *  Note - the returned popup object is 'owned' by the feature, so you
+     *      cannot use the popup's destroy method to discard the popup.
+     *      Instead, you must use the feature's destroyPopup
      * 
      *  Note - this.popup is set to return value
      * 
@@ -179,13 +185,14 @@ OpenLayers.Feature = OpenLayers.Class({
             var id = this.id + "_popup";
             var anchor = (this.marker) ? this.marker.icon : null;
 
-            this.popup = new this.popupClass(id, 
-                                             this.lonlat,
-                                             this.data.popupSize,
-                                             this.data.popupContentHTML,
-                                             anchor, 
-                                             closeBox); 
-            
+            if (!this.popup) {
+                this.popup = new this.popupClass(id, 
+                                                 this.lonlat,
+                                                 this.data.popupSize,
+                                                 this.data.popupContentHTML,
+                                                 anchor, 
+                                                 closeBox); 
+            }    
             if (this.data.overflow != null) {
                 this.popup.contentDiv.style.overflow = this.data.overflow;
             }    
@@ -204,8 +211,11 @@ OpenLayers.Feature = OpenLayers.Class({
      *   should also be able to override the destruction
      */
     destroyPopup: function() {
-        this.popup.feature = null;
-        this.popup.destroy() 
+        if (this.popup) {
+            this.popup.feature = null;
+            this.popup.destroy();
+            this.popup = null;
+        }    
     },
 
     CLASS_NAME: "OpenLayers.Feature"

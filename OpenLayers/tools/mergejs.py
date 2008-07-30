@@ -39,7 +39,7 @@
 #
 # Note: This is a very rough initial version of this code.
 #
-# -- Copyright 2005-2007 MetaCarta, Inc. / OpenLayers project --
+# -- Copyright 2005-2008 MetaCarta, Inc. / OpenLayers project --
 #
 
 # TODO: Allow files to be excluded. e.g. `Crossbrowser/DebugMode.js`?
@@ -51,7 +51,7 @@ import sys
 
 SUFFIX_JAVASCRIPT = ".js"
 
-RE_REQUIRE = "@requires (.*)\n" # TODO: Ensure in comment?
+RE_REQUIRE = "@requires:? (.*)\n" # TODO: Ensure in comment?
 class SourceFile:
     """
     Represents a Javascript source code file.

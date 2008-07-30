@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Layer/Grid.js
- *
+ */
+
+/**
  * Class: OpenLayers.Layer.MapServer
  * Instances of OpenLayers.Layer.MapServer are used to display
  * data from a MapServer CGI instance.
@@ -83,6 +85,7 @@ OpenLayers.Layer.MapServer = OpenLayers.Class(OpenLayers.Layer.Grid, {
      *
      * Parameters:
      * bounds - {<OpenLayers.Bounds>}
+     * position - {<OpenLayers.Pixel>}
      * 
      * Returns:
      * {<OpenLayers.Tile.Image>} The added OpenLayers.Tile.Image
@@ -142,19 +145,19 @@ OpenLayers.Layer.MapServer = OpenLayers.Class(OpenLayers.Layer.Grid, {
         // use layer's url unless altUrl passed in
         var url = (altUrl == null) ? this.url : altUrl;
         
-        // if url is not a string, it should be an array of strings, 
-        //  in which case we will randomly select one of them in order
-        //  to evenly distribute requests to different urls.
-        if (typeof url == "object") {
-            url = url[Math.floor(Math.random()*url.length)];
-        }   
-        // requestString always starts with url
-        var requestString = url;        
-
         // create a new params hashtable with all the layer params and the 
         // new params together. then convert to string
         var allParams = OpenLayers.Util.extend({}, this.params);
         allParams = OpenLayers.Util.extend(allParams, newParams);
+        var paramsString = OpenLayers.Util.getParameterString(allParams);
+        
+        // if url is not a string, it should be an array of strings, 
+        // in which case we will deterministically select one of them in 
+        // order to evenly distribute requests to different urls.
+        if (url instanceof Array) {
+            url = this.selectUrl(paramsString, url);
+        }   
+        
         // ignore parameters that are already in the url search string
         var urlParams = OpenLayers.Util.upperCaseObject(
                             OpenLayers.Util.getParameters(url));
@@ -163,8 +166,11 @@ OpenLayers.Layer.MapServer = OpenLayers.Class(OpenLayers.Layer.Grid, {
                 delete allParams[key];
             }
         }
-        var paramsString = OpenLayers.Util.getParameterString(allParams);
+        paramsString = OpenLayers.Util.getParameterString(allParams);
         
+        // requestString always starts with url
+        var requestString = url;        
+
         // MapServer needs '+' seperating things like bounds/height/width.
         //   Since typically this is URL encoded, we use a slight hack: we
         //  depend on the list-like functionality of getParameterString to

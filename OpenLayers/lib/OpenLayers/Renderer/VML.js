@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Renderer/Elements.js
- *
+ */
+
+/**
  * Class: OpenLayers.Renderer.VML
  * Render vector features in browsers with VML capability.  Construct a new
  * VML renderer with the <OpenLayers.Renderer.VML> constructor.
@@ -34,11 +36,13 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     initialize: function(containerID) {
         if (!this.supported()) { 
             return; 
-        } 
-        document.namespaces.add("v", "urn:schemas-microsoft-com:vml");
-        var style = document.createStyleSheet();
-        style.addRule('v\\:*', "behavior: url(#default#VML); " +
-                               "position: relative; display: inline-block;");
+        }
+        if (!document.namespaces.olv) {
+            document.namespaces.add("olv", this.xmlns);
+            var style = document.createStyleSheet();
+            style.addRule('olv\\:*', "behavior: url(#default#VML); " +
+                                   "position: absolute; display: inline-block;");
+        }
         OpenLayers.Renderer.Elements.prototype.initialize.apply(this, 
                                                                 arguments);
     },
@@ -59,8 +63,7 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {Boolean} The browser supports the VML renderer
      */
     supported: function() {
-        var supported = document.namespaces;
-        return supported;
+        return !!(document.namespaces);
     },    
 
     /**
@@ -98,35 +101,36 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         this.rendererRoot.style.width = this.size.w;
         this.rendererRoot.style.height = this.size.h;
 
-        this.root.style.width = "100%";
-        this.root.style.height = "100%";
+        this.root.style.width = this.size.w;
+        this.root.style.height = this.size.h;
     },
 
     /**
      * Method: getNodeType
-     * Get the noode type for a geometry
+     * Get the node type for a geometry and style
      *
      * Parameters:
      * geometry - {<OpenLayers.Geometry>}
+     * style - {Object}
      *
      * Returns:
      * {String} The corresponding node type for the specified geometry
      */
-    getNodeType: function(geometry) {
+    getNodeType: function(geometry, style) {
         var nodeType = null;
         switch (geometry.CLASS_NAME) {
             case "OpenLayers.Geometry.Point":
-                nodeType = "v:oval";
+                nodeType = style.externalGraphic ? "olv:rect" : "olv:oval";
                 break;
             case "OpenLayers.Geometry.Rectangle":
-                nodeType = "v:rect";
+                nodeType = "olv:rect";
                 break;
             case "OpenLayers.Geometry.LineString":
             case "OpenLayers.Geometry.LinearRing":
             case "OpenLayers.Geometry.Polygon":
             case "OpenLayers.Geometry.Curve":
             case "OpenLayers.Geometry.Surface":
-                nodeType = "v:shape";
+                nodeType = "olv:shape";
                 break;
             default:
                 break;
@@ -139,11 +143,11 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * Use to set all the style attributes to a VML node.
      *
      * Parameters:
-     * node - {DOMElement} 
+     * node - {DOMElement} An VML element to decorate
      * style - {Object}
-     * options - {Object} 
-     * isFilled - {Boolean} 
-     * isStroked - {Boolean}
+     * options - {Object} Currently supported options include 
+     *                              'isFilled' {Boolean} and
+     *                              'isStroked' {Boolean}
      * geometry - {<OpenLayers.Geometry>}
      */
     setStyle: function(node, style, options, geometry) {
@@ -152,31 +156,6 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         
         if (node._geometryClass == "OpenLayers.Geometry.Point") {
             if (style.externalGraphic) {
-                // remove old node
-                var id = node.id;
-                var _featureId = node._featureId;
-                var _geometryClass = node._geometryClass;
-                var _style = node._style;
-                this.root.removeChild(node);
-                
-                // create new image node
-                var node = this.createNode("v:rect", id);
-                var fill = this.createNode("v:fill", id+"_image");
-                node.appendChild(fill);
-                node._featureId = _featureId;
-                node._geometryClass = _geometryClass;
-                node._style = _style;
-                this.root.appendChild(node);
-                
-                fill.src = style.externalGraphic;
-                fill.type = "frame";
-                node.style.flip = "y";
-                
-                if (!(style.graphicWidth && style.graphicHeight)) {
-                  fill.aspect = "atmost";
-                }
-                
-                // now style the new node
                 var width = style.graphicWidth || style.graphicHeight;
                 var height = style.graphicHeight || style.graphicWidth;
                 width = width ? width : style.pointRadius*2;
@@ -193,18 +172,21 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
                 node.style.width = width;
                 node.style.height = height;    
                 
-                // modify fill style for rect styling below
+                // modify style/options for fill and stroke styling below
                 style.fillColor = "none";
-                style.strokeColor = "none";
+                options.isStroked = false;
                          
             } else {
                 this.drawCircle(node, geometry, style.pointRadius);
             }
         }
 
-      //fill
-        var fillColor = (options.isFilled) ? style.fillColor : "none";
-        node.setAttribute("fillcolor", fillColor);
+        // fill 
+        if (options.isFilled) { 
+            node.setAttribute("fillcolor", style.fillColor); 
+        } else { 
+            node.setAttribute("filled", "false"); 
+        }
         var fills = node.getElementsByTagName("fill");
         var fill = (fills.length == 0) ? null : fills[0];
         if (!options.isFilled) {
@@ -213,24 +195,39 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
             }
         } else {
             if (!fill) {
-                fill = this.createNode('v:fill', node.id + "_fill");
-                node.appendChild(fill);
+                fill = this.createNode('olv:fill', node.id + "_fill");
             }
-            // if graphicOpacity is set use it in priority for external graphic
+            fill.setAttribute("opacity", style.fillOpacity);
+
             if (node._geometryClass == "OpenLayers.Geometry.Point" &&
-                style.externalGraphic &&
-                style.graphicOpacity) {
-                fill.setAttribute("opacity", style.graphicOpacity);
-            } else if (style.fillOpacity) {
-                fill.setAttribute("opacity", style.fillOpacity);
+                    style.externalGraphic) {
+
+                // override fillOpacity
+                if (style.graphicOpacity) {
+                    fill.setAttribute("opacity", style.graphicOpacity);
+                }
+                
+                fill.setAttribute("src", style.externalGraphic);
+                fill.setAttribute("type", "frame");
+                node.style.flip = "y";
+                
+                if (!(style.graphicWidth && style.graphicHeight)) {
+                  fill.aspect = "atmost";
+                }                
+            }
+            if (fill.parentNode != node) {
+                node.appendChild(fill);
             }
         }
 
 
-      //stroke
-        var strokeColor = (options.isStroked) ? style.strokeColor : "none";
-        node.setAttribute("strokecolor", strokeColor);
-        node.setAttribute("strokeweight", style.strokeWidth);
+        // stroke 
+        if (options.isStroked) { 
+            node.setAttribute("strokecolor", style.strokeColor); 
+            node.setAttribute("strokeweight", style.strokeWidth + "px"); 
+        } else { 
+            node.setAttribute("stroked", "false"); 
+        }
         var strokes = node.getElementsByTagName("stroke");
         var stroke = (strokes.length == 0) ? null : strokes[0];
         if (!options.isStroked) {
@@ -239,15 +236,39 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
             }
         } else {
             if (!stroke) {
-                stroke = this.createNode('v:stroke', node.id + "_stroke");
+                stroke = this.createNode('olv:stroke', node.id + "_stroke");
                 node.appendChild(stroke);
             }
             stroke.setAttribute("opacity", style.strokeOpacity);
             stroke.setAttribute("endcap", !style.strokeLinecap || style.strokeLinecap == 'butt' ? 'flat' : style.strokeLinecap);
         }
         
-        if (style.cursor) {
+        if (style.cursor != null) {
             node.style.cursor = style.cursor;
+        }
+        return node;
+    },
+
+    /**
+     * Method: postDraw
+     * Some versions of Internet Explorer seem to be unable to set fillcolor
+     * and strokecolor to "none" correctly before the fill node is appended to
+     * a visible vml node. This method takes care of that and sets fillcolor
+     * and strokecolor again if needed.
+     * 
+     * Parameters:
+     * node - {DOMElement}
+     */
+    postDraw: function(node) {
+        var fillColor = node._style.fillColor;
+        var strokeColor = node._style.strokeColor;
+        if (fillColor == "none" &&
+                node.getAttribute("fillcolor") != fillColor) {
+            node.setAttribute("fillcolor", fillColor);
+        }
+        if (strokeColor == "none" &&
+                node.getAttribute("strokecolor") != strokeColor) {
+            node.setAttribute("strokecolor", strokeColor);
         }
     },
 
@@ -300,6 +321,12 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         if (id) {
             node.setAttribute('id', id);
         }
+        
+        // IE hack to make elements unselectable, to prevent 'blue flash'
+        // while dragging vectors; #1410
+        node.setAttribute('unselectable', 'on', 0);
+        node.onselectstart = function() { return(false); };
+        
         return node;    
     },
     
@@ -308,8 +335,8 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * Determine whether a node is of a given type
      *
      * Parameters:
-     * type - {String} Kind of node to draw
-     * id - {String} Id for node
+     * node - {DOMElement} An VML element
+     * type - {String} Kind of node
      *
      * Returns:
      * {Boolean} Whether or not the specified node is of the specified type
@@ -341,9 +368,7 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {DOMElement} The specific render engine's root element
      */
     createRenderRoot: function() {
-        var id = this.container.id + "_vmlRoot";
-        var rendererRoot = this.nodeFactory(id, "div");
-        return rendererRoot;                        
+        return this.nodeFactory(this.container.id + "_vmlRoot", "div");
     },
 
     /**
@@ -354,9 +379,7 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {DOMElement} The main root element to which we'll add vectors
      */
     createRoot: function() {
-        var id = this.container.id + "_root";
-        var root = this.nodeFactory(id, "v:group");
-        return root;
+        return this.nodeFactory(this.container.id + "_root", "olv:group");
     },
 
     /**************************************
@@ -440,19 +463,18 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         this.setNodeDimension(node, geometry);
 
         var resolution = this.getResolution();
+        var numComponents = geometry.components.length;
+        var parts = new Array(numComponents);
 
-        var path = "m";
-        for (var i = 0; i < geometry.components.length; i++) {
-            var x = (geometry.components[i].x/resolution);
-            var y = (geometry.components[i].y/resolution);
-            path += " " + x.toFixed() + "," + y.toFixed() + " l ";
+        var comp, x, y;
+        for (var i = 0; i < numComponents; i++) {
+            comp = geometry.components[i];
+            x = (comp.x/resolution);
+            y = (comp.y/resolution);
+            parts[i] = " " + x.toFixed() + "," + y.toFixed() + " l ";
         }
-        if (closeLine) {
-            path += " x";
-        }
-        path += " e";
-
-        node.path = path;
+        var end = (closeLine) ? " x e" : " e";
+        node.path = "m" + parts.join("") + end;
     },
 
     /**
@@ -468,23 +490,25 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
 
         var resolution = this.getResolution();
     
-        var path = "";
+        var path = [];
+        var linearRing, i, comp, x, y;
         for (var j = 0; j < geometry.components.length; j++) {
-            var linearRing = geometry.components[j];
+            linearRing = geometry.components[j];
 
-            path += "m";
-            for (var i = 0; i < linearRing.components.length; i++) {
-                var x = linearRing.components[i].x / resolution;
-                var y = linearRing.components[i].y / resolution;
-                path += " " + x.toFixed() + "," + y.toFixed();
+            path.push("m");
+            for (i = 0; i < linearRing.components.length; i++) {
+                comp = linearRing.components[i];
+                x = comp.x / resolution;
+                y = comp.y / resolution;
+                path.push(" " + x.toFixed() + "," + y.toFixed());
                 if (i==0) {
-                    path += " l";
+                    path.push(" l");
                 }
             }
-            path += " x ";
+            path.push(" x ");
         }
-        path += "e";
-        node.path = path;
+        path.push("e");
+        node.path = path.join("");
     },
 
     /**
@@ -504,37 +528,6 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         node.style.height = geometry.height/resolution;
     },
 
-
-
-    /**
-     * Method: drawCurve
-     * 
-     * Parameters:
-     * node - {DOMElement}
-     * geometry - {<OpenLayers.Geometry>}
-     */
-    drawCurve: function(node, geometry) {
-        this.setNodeDimension(node, geometry);
-
-        var resolution = this.getResolution();
-    
-        var path = "";
-        for (var i = 0; i < geometry.components.length; i++) {
-            var x = geometry.components[i].x / resolution;
-            var y = geometry.components[i].y / resolution;
-    
-            if ((i%3)==0 && (i/3)==0) {
-                path += "m"
-            } else if ((i%3)==1) {
-                path += " c"
-            }
-            path += " " + x + "," + y;
-        }
-        path += " x e";
-
-        node.path = path;
-    },
-
     /**
      * Method: drawSurface
      * 
@@ -548,20 +541,22 @@ OpenLayers.Renderer.VML = OpenLayers.Class(OpenLayers.Renderer.Elements, {
 
         var resolution = this.getResolution();
     
-        var path = "";
+        var path = [];
+        var comp, x, y;
         for (var i = 0; i < geometry.components.length; i++) {
-            var x = geometry.components[i].x / resolution;
-            var y = geometry.components[i].y / resolution;
+            comp = geometry.components[i];
+            x = comp.x / resolution;
+            y = comp.y / resolution;
             if ((i%3)==0 && (i/3)==0) {
-                path += "m";
+                path.push("m");
             } else if ((i%3)==1) {
-                path += " c";
+                path.push(" c");
             }
-            path += " " + x + "," + y;
+            path.push(" " + x + "," + y);
         }
-        path += " x e";
+        path.push(" x e");
 
-        node.path = path;
+        node.path = path.join("");
     },
 
     CLASS_NAME: "OpenLayers.Renderer.VML"

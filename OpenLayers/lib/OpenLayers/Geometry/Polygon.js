@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Geometry/Collection.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Geometry.Polygon 
  * Polygon is a collection of Geometry.LinearRings. 
  * 
@@ -31,7 +33,7 @@ OpenLayers.Geometry.Polygon = OpenLayers.Class(
      *
      *
      * Parameters:
-     * components - Array({<OpenLayers.Geometry.LinearRing>}) 
+     * components - {Array(<OpenLayers.Geometry.LinearRing>)} 
      */
     initialize: function(components) {
         OpenLayers.Geometry.Collection.prototype.initialize.apply(this, 
@@ -57,6 +59,102 @@ OpenLayers.Geometry.Polygon = OpenLayers.Class(
         return area;
     },
 
+    /**
+     * Method: containsPoint
+     * Test if a point is inside a polygon.  Points on a polygon edge are
+     *     considered inside.
+     *
+     * Parameters:
+     * point - {<OpenLayers.Geometry.Point>}
+     *
+     * Returns:
+     * {Boolean | Number} The point is inside the polygon.  Returns 1 if the
+     *     point is on an edge.  Returns boolean otherwise.
+     */
+    containsPoint: function(point) {
+        var numRings = this.components.length;
+        var contained = false;
+        if(numRings > 0) {
+            // check exterior ring - 1 means on edge, boolean otherwise
+            contained = this.components[0].containsPoint(point);
+            if(contained !== 1) {
+                if(contained && numRings > 1) {
+                    // check interior rings
+                    var hole;
+                    for(var i=1; i<numRings; ++i) {
+                        hole = this.components[i].containsPoint(point);
+                        if(hole) {
+                            if(hole === 1) {
+                                // on edge
+                                contained = 1;
+                            } else {
+                                // in hole
+                                contained = false;
+                            }                            
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        return contained;
+    },
+
+    /**
+     * APIMethod: intersects
+     * Determine if the input geometry intersects this one.
+     *
+     * Parameters:
+     * geometry - {<OpenLayers.Geometry>} Any type of geometry.
+     *
+     * Returns:
+     * {Boolean} The input geometry intersects this one.
+     */
+    intersects: function(geometry) {
+        var intersect = false;
+        var i;
+        if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
+            intersect = this.containsPoint(geometry);
+        } else if(geometry.CLASS_NAME == "OpenLayers.Geometry.LineString" ||
+                  geometry.CLASS_NAME == "OpenLayers.Geometry.LinearRing") {
+            // check if rings/linestrings intersect
+            for(i=0; i<this.components.length; ++i) {
+                intersect = geometry.intersects(this.components[i]);
+                if(intersect) {
+                    break;
+                }
+            }
+            if(!intersect) {
+                // check if this poly contains points of the ring/linestring
+                for(i=0; i<geometry.components.length; ++i) {
+                    intersect = this.containsPoint(geometry.components[i]);
+                    if(intersect) {
+                        break;
+                    }
+                }
+            }
+        } else {
+            for(i=0; i<geometry.components.length; ++ i) {
+                intersect = this.intersects(geometry.components[i]);
+                if(intersect) {
+                    break;
+                }
+            }
+        }
+        // check case where this poly is wholly contained by another
+        if(!intersect && geometry.CLASS_NAME == "OpenLayers.Geometry.Polygon") {
+            // exterior ring points will be contained in the other geometry
+            var ring = this.components[0];
+            for(i=0; i<ring.components.length; ++i) {
+                intersect = geometry.containsPoint(ring.components[i]);
+                if(intersect) {
+                    break;
+                }
+            }
+        }
+        return intersect;
+    },
+
     CLASS_NAME: "OpenLayers.Geometry.Polygon"
 });
 
@@ -76,7 +174,7 @@ OpenLayers.Geometry.Polygon.createRegularPolygon = function(origin, radius, side
     if(rotation) {
         angle += (rotation / 180) * Math.PI;
     }
-    var rotateAngle, x, y;
+    var rotatedAngle, x, y;
     var points = [];
     for(var i=0; i<sides; ++i) {
         rotatedAngle = angle + (i * 2 * Math.PI / sides);
@@ -86,4 +184,4 @@ OpenLayers.Geometry.Polygon.createRegularPolygon = function(origin, radius, side
     }
     var ring = new OpenLayers.Geometry.LinearRing(points);
     return new OpenLayers.Geometry.Polygon([ring]);
-}
+};

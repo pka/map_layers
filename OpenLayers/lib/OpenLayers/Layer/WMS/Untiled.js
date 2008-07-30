@@ -1,13 +1,15 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
  
 /**
  * @requires OpenLayers/Layer/WMS.js
- *
+ */
+
+/**
  * Class: OpenLayers.Layer.WMS.Untiled
- * Deprecated, to be removed in 3.0 - instead use OpenLayers.Layer.WMS and 
+ * *Deprecated*.  To be removed in 3.0.  Instead use OpenLayers.Layer.WMS and 
  *     pass the option 'singleTile' as true.
  * 
  * Inherits from: 

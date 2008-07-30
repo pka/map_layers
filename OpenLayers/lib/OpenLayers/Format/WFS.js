@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Format/GML.js
- *
+ */
+
+/**
  * Class: OpenLayers.Format.WFS
  * Read/Write WFS. 
  */
@@ -19,6 +21,11 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      * APIProperty: wfsns
      */
     wfsns: "http://www.opengis.net/wfs",
+    
+    /**
+     * Property: ogcns
+     */
+    ogcns: "http://www.opengis.net/ogc",
     
     /*
      * Constructor: OpenLayers.Format.WFS
@@ -55,8 +62,8 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      * features - {Array(<OpenLayers.Feature.Vector>)} 
      */
     write: function(features) {
-        
-        var transaction = document.createElementNS('http://www.opengis.net/wfs', 'wfs:Transaction');
+    
+        var transaction = this.createElementNS(this.wfsns, 'wfs:Transaction');
         transaction.setAttribute("version","1.0.0");
         transaction.setAttribute("service","WFS");
         for (var i=0; i < features.length; i++) {
@@ -72,7 +79,8 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
                     break;
             }
         }
-        return transaction;
+        
+        return OpenLayers.Format.XML.prototype.write.apply(this,[transaction]);
     },
    
     /**
@@ -83,17 +91,17 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      */ 
     createFeatureXML: function(feature) {
         var geometryNode = this.buildGeometryNode(feature.geometry);
-        var geomContainer = document.createElementNS(this.featureNS, "feature:" + this.geometryName);
+        var geomContainer = this.createElementNS(this.featureNS, "feature:" + this.geometryName);
         geomContainer.appendChild(geometryNode);
-        var featureContainer = document.createElementNS(this.featureNS, "feature:" + this.featureName);
+        var featureContainer = this.createElementNS(this.featureNS, "feature:" + this.featureName);
         featureContainer.appendChild(geomContainer);
         for(var attr in feature.attributes) {
-            var attrText = document.createTextNode(feature.attributes[attr]); 
+            var attrText = this.createTextNode(feature.attributes[attr]); 
             var nodename = attr;
             if (attr.search(":") != -1) {
                 nodename = attr.split(":")[1];
             }    
-            var attrContainer = document.createElementNS(this.featureNS, "feature:" + nodename);
+            var attrContainer = this.createElementNS(this.featureNS, "feature:" + nodename);
             attrContainer.appendChild(attrText);
             featureContainer.appendChild(attrContainer);
         }    
@@ -108,7 +116,7 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      * feature - {<OpenLayers.Feature.Vector>} 
      */
     insert: function(feature) {
-        var insertNode = document.createElementNS(this.wfsns, 'wfs:Insert');
+        var insertNode = this.createElementNS(this.wfsns, 'wfs:Insert');
         insertNode.appendChild(this.createFeatureXML(feature));
         return insertNode;
     },
@@ -121,25 +129,47 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      * feature - {<OpenLayers.Feature.Vector>} 
      */
     update: function(feature) {
-        if (!feature.fid) { alert("Can't update a feature for which there is no FID."); }
-        var updateNode = document.createElementNS(this.wfsns, 'wfs:Update');
+        if (!feature.fid) { alert(OpenLayers.i18n("noFID")); }
+        var updateNode = this.createElementNS(this.wfsns, 'wfs:Update');
         updateNode.setAttribute("typeName", this.layerName);
 
-        var propertyNode = document.createElementNS(this.wfsns, 'wfs:Property');
-        var nameNode = document.createElementNS('http://www.opengis.net/wfs', 'wfs:Name');
+        var propertyNode = this.createElementNS(this.wfsns, 'wfs:Property');
+        var nameNode = this.createElementNS(this.wfsns, 'wfs:Name');
         
-        var txtNode = document.createTextNode(this.geometryName);
+        var txtNode = this.createTextNode(this.geometryName);
         nameNode.appendChild(txtNode);
         propertyNode.appendChild(nameNode);
         
-        var valueNode = document.createElementNS('http://www.opengis.net/wfs', 'wfs:Value');
-        valueNode.appendChild(this.buildGeometryNode(feature.geometry));
+        var valueNode = this.createElementNS(this.wfsns, 'wfs:Value');
+        
+        var geometryNode = this.buildGeometryNode(feature.geometry);
+        
+        if(feature.layer){
+            geometryNode.setAttribute(
+                "srsName", feature.layer.projection.getCode()
+            );
+        }
+        
+        valueNode.appendChild(geometryNode);
         
         propertyNode.appendChild(valueNode);
         updateNode.appendChild(propertyNode);
         
-        var filterNode = document.createElementNS('http://www.opengis.net/ogc', 'ogc:Filter');
-        var filterIdNode = document.createElementNS('http://www.opengis.net/ogc', 'ogc:FeatureId');
+         // add in attributes
+        for(var propName in feature.attributes) {
+            propertyNode = this.createElementNS(this.wfsns, 'wfs:Property');
+            nameNode = this.createElementNS(this.wfsns, 'wfs:Name');
+            nameNode.appendChild(this.createTextNode(propName));
+            propertyNode.appendChild(nameNode);
+            valueNode = this.createElementNS(this.wfsns, 'wfs:Value');
+            valueNode.appendChild(this.createTextNode(feature.attributes[propName]));
+            propertyNode.appendChild(valueNode);
+            updateNode.appendChild(propertyNode);
+        }
+        
+        
+        var filterNode = this.createElementNS(this.ogcns, 'ogc:Filter');
+        var filterIdNode = this.createElementNS(this.ogcns, 'ogc:FeatureId');
         filterIdNode.setAttribute("fid", feature.fid);
         filterNode.appendChild(filterIdNode);
         updateNode.appendChild(filterNode);
@@ -155,16 +185,16 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      * feature - {<OpenLayers.Feature.Vector>} 
      */
     remove: function(feature) {
-        if (!feature.attributes.fid) { 
-            alert("Can't update a feature for which there is no FID."); 
+        if (!feature.fid) { 
+            alert(OpenLayers.i18n("noFID")); 
             return false; 
         }
-        var deleteNode = document.createElementNS(this.featureNS, 'wfs:Delete');
+        var deleteNode = this.createElementNS(this.wfsns, 'wfs:Delete');
         deleteNode.setAttribute("typeName", this.layerName);
 
-        var filterNode = document.createElementNS('http://www.opengis.net/ogc', 'ogc:Filter');
-        var filterIdNode = document.createElementNS('http://www.opengis.net/ogc', 'ogc:FeatureId');
-        filterIdNode.setAttribute("fid", feature.attributes.fid);
+        var filterNode = this.createElementNS(this.ogcns, 'ogc:Filter');
+        var filterIdNode = this.createElementNS(this.ogcns, 'ogc:FeatureId');
+        filterIdNode.setAttribute("fid", feature.fid);
         filterNode.appendChild(filterIdNode);
         deleteNode.appendChild(filterNode);
 

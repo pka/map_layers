@@ -1,12 +1,14 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 
 /**
  * @requires OpenLayers/Handler/Path.js
  * @requires OpenLayers/Geometry/Polygon.js
- *
+ */
+
+/**
  * Class: OpenLayers.Handler.Polygon
  * Handler to draw a polygon on the map.  Polygon is displayed on mouse down,
  * moves on mouse move, and is finished on mouse up.
@@ -65,7 +67,9 @@ OpenLayers.Handler.Polygon = OpenLayers.Class(OpenLayers.Handler.Path, {
      */
     destroyFeature: function() {
         OpenLayers.Handler.Path.prototype.destroyFeature.apply(this);
-        this.polygon.destroy();
+        if(this.polygon) {
+            this.polygon.destroy();
+        }
         this.polygon = null;
     },
 

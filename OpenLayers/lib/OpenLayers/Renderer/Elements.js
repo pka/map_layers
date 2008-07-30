@@ -1,10 +1,12 @@
-/* Copyright (c) 2006-2007 MetaCarta, Inc., published under the BSD license.
- * See http://svn.openlayers.org/trunk/openlayers/release-license.txt 
- * for the full text of the license. */
+/* Copyright (c) 2006-2008 MetaCarta, Inc., published under the Clear BSD
+ * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
+ * full text of the license. */
 
 /**
  * @requires OpenLayers/Renderer.js
- * 
+ */
+
+/**
  * Class: OpenLayers.Renderer.Elements
  * This is another virtual class in that it should never be instantiated by 
  *  itself as a Renderer. It exists because there is *tons* of shared 
@@ -38,6 +40,17 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
      * {String}
      */    
     xmlns: null,
+    
+    /**
+     * Property: minimumSymbolizer
+     * {Object}
+     */
+    minimumSymbolizer: {
+        strokeLinecap: "round",
+        strokeOpacity: 1,
+        fillOpacity: 1,
+        pointRadius: 0
+    },
     
     /**
      * Constructor: OpenLayers.Renderer.Elements
@@ -84,19 +97,20 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
     /** 
      * Method: getNodeType
      * This function is in charge of asking the specific renderer which type
-     *     of node to create for the given geometry. All geometries in an 
-     *     Elements-based renderer consist of one node and some attributes. We
-     *     have the nodeFactory() function which creates a node for us, but it
-     *     takes a 'type' as input, and that is precisely what this function 
-     *     tells us.  
+     *     of node to create for the given geometry and style. All geometries
+     *     in an Elements-based renderer consist of one node and some
+     *     attributes. We have the nodeFactory() function which creates a node
+     *     for us, but it takes a 'type' as input, and that is precisely what
+     *     this function tells us.  
      *  
      * Parameters:
      * geometry - {<OpenLayers.Geometry>}
+     * style - {Object}
      * 
      * Returns:
      * {String} The corresponding node type for the specified geometry
      */
-    getNodeType: function(geometry) { },
+    getNodeType: function(geometry, style) { },
 
     /** 
      * Method: drawGeometry 
@@ -121,16 +135,28 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
             return;
         };
 
-        //first we create the basic node and add it to the root
-        var nodeType = this.getNodeType(geometry);
-        var node = this.nodeFactory(geometry.id, nodeType, geometry);
-        node._featureId = featureId;
-        node._geometryClass = geometry.CLASS_NAME;
-        node._style = style;
-        this.root.appendChild(node);
-        
-        //now actually draw the node, and style it
-        this.drawGeometryNode(node, geometry);
+        if (style.display != "none") {
+            //first we create the basic node and add it to the root
+            var nodeType = this.getNodeType(geometry, style);
+            var node = this.nodeFactory(geometry.id, nodeType);
+            node._featureId = featureId;
+            node._geometryClass = geometry.CLASS_NAME;
+            node._style = style;
+            
+            //now actually draw the node, and style it
+            node = this.drawGeometryNode(node, geometry);
+            
+            // append the node to root (but only if it's new)
+            if (node.parentNode != this.root) { 
+                this.root.appendChild(node); 
+            }
+            this.postDraw(node);
+        } else {
+            node = OpenLayers.Util.getElement(geometry.id);
+            if (node) {
+                node.parentNode.removeChild(node);
+            }
+        }
     },
 
     /**
@@ -146,10 +172,11 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
      */
     drawGeometryNode: function(node, geometry, style) {
         style = style || node._style;
+        OpenLayers.Util.applyDefaults(style, this.minimumSymbolizer);
 
         var options = {
             'isFilled': true,
-            'isStroked': true
+            'isStroked': !!style.strokeWidth
         };
         switch (geometry.CLASS_NAME) {
             case "OpenLayers.Geometry.Point":
@@ -180,8 +207,18 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
 
         //set style
         //TBD simplify this
-        this.setStyle(node, style, options, geometry);
+        return this.setStyle(node, style, options, geometry);
     },
+    
+    /**
+     * Method: postDraw
+     * Things that have do be done after the geometry node is appended
+     * to its parent node. To be overridden by subclasses.
+     * 
+     * Parameters:
+     * node - {DOMElement}
+     */
+    postDraw: function(node) {},
     
     /**
      * Method: drawPoint
@@ -256,18 +293,6 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
     drawCircle: function(node, geometry) {},
 
     /**
-     * Method: drawCurve
-     * Virtual function for drawing Curve Geometry. 
-     * Should be implemented by subclasses.
-     * This method is only called by the renderer itself.
-     * 
-     * Parameters: 
-     * node - {DOMElement}
-     * geometry - {<OpenLayers.Geometry>}
-     */ 
-    drawCurve: function(node, geometry) {},
-
-    /**
      * Method: drawSurface
      * Virtual function for drawing Surface Geometry. 
      * Should be implemented by subclasses.
@@ -314,10 +339,6 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
         } else {    
             var element = OpenLayers.Util.getElement(geometry.id);
             if (element && element.parentNode) {
-                if (element.geometry) {
-                    element.geometry.destroy();
-                    element.geometry = null;
-                }
                 element.parentNode.removeChild(element);
             }
         }
@@ -333,17 +354,16 @@ OpenLayers.Renderer.Elements = OpenLayers.Class(OpenLayers.Renderer, {
      * Parameters:
      * id - {String}
      * type - {String} type Kind of node to draw
-     * geometry - {<OpenLayers.Geometry>}
      * 
      * Returns:
      * {DOMElement} A new node of the given type and id
      */
-    nodeFactory: function(id, type, geometry) {
+    nodeFactory: function(id, type) {
         var node = OpenLayers.Util.getElement(id);
         if (node) {
             if (!this.nodeTypeCompare(node, type)) {
                 node.parentNode.removeChild(node);
-                node = this.nodeFactory(id, type, geometry);
+                node = this.nodeFactory(id, type);
             }
         } else {
             node = this.createNode(type, id);
