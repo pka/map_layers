@@ -23,11 +23,11 @@ end
 
 desc 'Import new OpenLayers libray. Use SRC=path_to_openlayers'
 task :import_ol do
-  FileUtils.rm_r(File.join(File.dirname(__FILE__), "OpenLayers"))
+  FileUtils.rm_rf(File.join(File.dirname(__FILE__), "OpenLayers"))
   copy_files("/lib", "/OpenLayers", ENV['SRC'])
   copy_files("/tools", "/OpenLayers", ENV['SRC'])
   copy_files("/build", "/OpenLayers", ENV['SRC'])
-  FileUtils.rm_r(File.join(File.dirname(__FILE__), "public"))
+  FileUtils.rm_rf(File.join(File.dirname(__FILE__), "public"))
   copy_files("/OpenLayers.js", "/public/javascripts", ENV['SRC'])
   copy_files("/img/.", "/public/images/OpenLayers", ENV['SRC'])
   copy_files("/theme/default/img/.", "/public/images/OpenLayers", ENV['SRC'])
