@@ -8,7 +8,7 @@ With MapLayers you can display and publish ActiveRecord models with geographic d
 ==Getting Started
 
 Install the latest version of the plugin:
-  ./script/plugin install http://www.sourcepole.ch/svn/plugins/map_layers/trunk
+  ./script/plugin install git://github.com/pka/map_layers.git
 
 Create a controller and a view
   ./script/generate controller Map index
