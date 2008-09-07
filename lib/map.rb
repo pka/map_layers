@@ -29,6 +29,9 @@ module MapLayers
       "http://t4.hypercube.telascience.org/cgi-bin/landsat7"
     ], 
     {:layers => 'landsat7'} )
+  BLUE_MARBLE_NG = Layer::WMS.new("Blue Marble Next Generation",
+    "http://wms.telascience.org/cgi-bin/ngBM_wms",
+    {:layers => 'world_topo_bathy'} )
   WORLDWIND = Layer::WorldWind.new("World Wind LANDSAT",
     "http://worldwind25.arc.nasa.gov/tile/tile.aspx", 2.25, 4, {:T => "105"}, {:tileSize => OpenLayers::Size.new(512,512)})
   WORLDWIND_URBAN = Layer::WorldWind.new("World Wind Urban",
