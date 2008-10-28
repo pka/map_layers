@@ -119,7 +119,7 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
     runChildNodes: function(obj, node) {
         var children = node.childNodes;
         var childNode, processor, prefix, local;
-        for(var i=0; i<children.length; ++i) {
+        for(var i=0, len=children.length; i<len; ++i) {
             childNode = children[i];
             if(childNode.nodeType == 1) {
                 prefix = this.getNamespacePrefix(childNode.namespaceURI);
@@ -167,9 +167,10 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         var layerInfo = {
             params: {},
             options: {
-                visibility: (node.getAttribute("hidden") != "1")
+                visibility: (node.getAttribute("hidden") != "1"),
+                queryable: (node.getAttribute("queryable") == "1")
+                
             },
-            queryable: (node.getAttribute("queryable") == "1"),
             formats: [],
             styles: []
         };
@@ -373,6 +374,19 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         if(title) {
             obj.title = title;
         }
+    },
+
+    /**
+     * Method: read_wmc_MetadataURL
+     */
+    read_wmc_MetadataURL: function(layerInfo, node) {
+        var metadataURL = {};
+        var links = node.getElementsByTagName("OnlineResource");
+        if(links.length > 0) {
+            this.read_wmc_OnlineResource(metadataURL, links[0]);
+        }
+        layerInfo.options.metadataURL = metadataURL.href;
+
     },
 
     /**
@@ -580,7 +594,7 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         var list = this.createElementDefaultNS("LayerList");
         
         var layer;
-        for(var i=0; i<context.layers.length; ++i) {
+        for(var i=0, len=context.layers.length; i<len; ++i) {
             layer = context.layers[i];
             if(layer instanceof OpenLayers.Layer.WMS) {
                 list.appendChild(this.write_wmc_Layer(layer));
@@ -603,7 +617,7 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
     write_wmc_Layer: function(layer) {
         var node = this.createElementDefaultNS(
             "Layer", null, {
-                queryable: "1",
+                queryable: layer.queryable ? "1" : "0",
                 hidden: layer.visibility ? "0" : "1"
             }
         );
@@ -620,6 +634,11 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         node.appendChild(this.createElementDefaultNS(
             "Title", layer.name
         ));
+
+        // optional MetadataURL element
+        if (layer.metadataURL) {
+            node.appendChild(this.write_wmc_MetadataURL(layer));
+        }
         
         // optional FormatList element
         node.appendChild(this.write_wmc_FormatList(layer));
@@ -672,7 +691,7 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
             "opacity", "displayInLayerSwitcher", "singleTile"
         ];
         var child;
-        for(var i=0; i<properties.length; ++i) {
+        for(var i=0, len=properties.length; i<len; ++i) {
             child = this.createOLPropertyNode(layer, properties[i]);
             if(child) {
                 node.appendChild(child);
@@ -723,6 +742,25 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         // required OnlineResource element
         node.appendChild(this.write_wmc_OnlineResource(layer.url));
         
+        return node;
+    },
+
+    /**
+     * Method: write_wmc_MetadataURL
+     * Create a MetadataURL node given a layer object.
+     *
+     * Parameters:
+     * layer - {<OpenLayers.Layer.WMS>} Layer object.
+     *
+     * Returns:
+     * {Element} A WMC metadataURL element node.
+     */
+    write_wmc_MetadataURL: function(layer) {
+        var node = this.createElementDefaultNS("MetadataURL");
+
+        // required OnlineResource element
+        node.appendChild(this.write_wmc_OnlineResource(layer.metadataURL));
+
         return node;
     },
 

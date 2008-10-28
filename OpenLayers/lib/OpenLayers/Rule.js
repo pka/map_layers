@@ -41,7 +41,7 @@ OpenLayers.Rule = OpenLayers.Class({
     /**
      * Property: context
      * {Object} An optional object with properties that the rule should be
-     * evaluatad against. If no context is specified, feature.attributes will
+     * evaluated against. If no context is specified, feature.attributes will
      * be used.
      */
     context: null,
@@ -65,7 +65,11 @@ OpenLayers.Rule = OpenLayers.Class({
     /**
      * Property: symbolizer
      * {Object} Symbolizer or hash of symbolizers for this rule. If hash of
-     * symbolizers, keys are one or more of ["Point", "Line", "Polygon"]
+     * symbolizers, keys are one or more of ["Point", "Line", "Polygon"]. The
+     * latter if useful if it is required to style e.g. vertices of a line
+     * with a point symbolizer. Note, however, that this is not implemented
+     * yet in OpenLayers, but it is the way how symbolizers are defined in
+     * SLD.
      */
     symbolizer: null,
     
@@ -168,6 +172,9 @@ OpenLayers.Rule = OpenLayers.Class({
         var context = this.context;
         if (!context) {
             context = feature.attributes || feature.data;
+        }
+        if (typeof this.context == "function") {
+            context = this.context(feature);
         }
         return context;
     },

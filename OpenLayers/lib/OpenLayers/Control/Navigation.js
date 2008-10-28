@@ -30,6 +30,12 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
      */
     dragPan: null,
 
+    /**
+     * APIProprety: dragPanOptions
+     * {Object} Options passed to the DragPan control.
+     */
+    dragPanOptions: null,
+
     /** 
      * Property: zoomBox
      * {<OpenLayers.Control.ZoomBox>}
@@ -42,6 +48,12 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
      */
     zoomWheelEnabled: true, 
 
+    /**
+     * APIProperty: handleRightClicks
+     * {Boolean} Whether or not to handle right clicks. Default is false.
+     */
+    handleRightClicks: false,
+    
     /**
      * Constructor: OpenLayers.Control.Navigation
      * Create a new navigation control
@@ -104,13 +116,25 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
      * Method: draw
      */
     draw: function() {
-        this.handlers.click = new OpenLayers.Handler.Click(this, 
-                                        { 'dblclick': this.defaultDblClick },
-                                        {
-                                          'double': true, 
-                                          'stopDouble': true
-                                        });
-        this.dragPan = new OpenLayers.Control.DragPan({map: this.map});
+        // disable right mouse context menu for support of right click events
+        if (this.handleRightClicks) {
+            this.map.div.oncontextmenu = function () { return false;};
+        }
+
+        var clickCallbacks = { 
+            'dblclick': this.defaultDblClick, 
+            'dblrightclick': this.defaultDblRightClick 
+        };
+        var clickOptions = {
+            'double': true, 
+            'stopDouble': true
+        };
+        this.handlers.click = new OpenLayers.Handler.Click(
+            this, clickCallbacks, clickOptions
+        );
+        this.dragPan = new OpenLayers.Control.DragPan(
+            OpenLayers.Util.extend({map: this.map}, this.dragPanOptions)
+        );
         this.zoomBox = new OpenLayers.Control.ZoomBox(
                     {map: this.map, keyMask: OpenLayers.Handler.MOD_SHIFT});
         this.dragPan.draw();
@@ -132,6 +156,17 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
         this.map.setCenter(newCenter, this.map.zoom + 1);
     },
 
+    /**
+     * Method: defaultRightDblClick 
+     * 
+     * Parameters:
+     * evt - {Event} 
+     */
+    defaultDblRightClick: function (evt) {
+        var newCenter = this.map.getLonLatFromViewPortPx( evt.xy ); 
+        this.map.setCenter(newCenter, this.map.zoom - 1);
+    },
+    
     /**
      * Method: wheelChange  
      *

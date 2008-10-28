@@ -10,6 +10,9 @@
  * Class: OpenLayers.Control.Attribution
  * Add attribution from layers to the map display. Uses 'attribution' property
  * of each layer.
+ *
+ * Inherits from:
+ *  - <OpenLayers.Control>
  */
 OpenLayers.Control.Attribution = 
   OpenLayers.Class(OpenLayers.Control, {
@@ -75,7 +78,7 @@ OpenLayers.Control.Attribution =
     updateAttribution: function() {
         var attributions = [];
         if (this.map && this.map.layers) {
-            for(var i=0; i < this.map.layers.length; i++) {
+            for(var i=0, len=this.map.layers.length; i<len; i++) {
                 var layer = this.map.layers[i];
                 if (layer.attribution && layer.getVisibility()) {
                     attributions.push( layer.attribution );

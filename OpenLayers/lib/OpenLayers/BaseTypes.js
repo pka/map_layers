@@ -84,7 +84,7 @@ OpenLayers.String = {
     camelize: function(str) {
         var oStringList = str.split('-');
         var camelizedString = oStringList[0];
-        for (var i = 1; i < oStringList.length; i++) {
+        for (var i=1, len=oStringList.length; i<len; i++) {
             var s = oStringList[i];
             camelizedString += s.charAt(0).toUpperCase() + s.substring(1);
         }
@@ -118,7 +118,7 @@ OpenLayers.String = {
         }
         var tokens = template.split("${");
         var item, last, replacement;
-        for(var i=1; i<tokens.length; i++) {
+        for(var i=1, len=tokens.length; i<len; i++) {
             item = tokens[i];
             last = item.indexOf("}"); 
             if(last > 0) {
@@ -134,6 +134,31 @@ OpenLayers.String = {
             }
         }
         return tokens.join("");
+    },
+    
+    /**
+     * Property: OpenLayers.String.numberRegEx
+     * Used to test strings as numbers.
+     */
+    numberRegEx: /^([+-]?)(?=\d|\.\d)\d*(\.\d*)?([Ee]([+-]?\d+))?$/,
+    
+    /**
+     * APIFunction: OpenLayers.String.isNumeric
+     * Determine whether a string contains only a numeric value.
+     *
+     * Examples:
+     * (code)
+     * OpenLayers.String.isNumeric("6.02e23") // true
+     * OpenLayers.String.isNumeric("12 dozen") // false
+     * OpenLayers.String.isNumeric("4") // true
+     * OpenLayers.String.isNumeric(" 4 ") // false
+     * (end)
+     *
+     * Returns:
+     * {Boolean} String contains only a number.
+     */
+    isNumeric: function(value) {
+        return OpenLayers.String.numberRegEx.test(value);
     }
 
 };
@@ -315,7 +340,7 @@ if (!Number.prototype.limitSigDigs) {
      */
     Number.prototype.limitSigDigs = function(sig) {
         OpenLayers.Console.warn(OpenLayers.i18n("methodDeprecated",
-                              {'newMethod':'OpenLayers.String.limitSigDigs'}));
+                              {'newMethod':'OpenLayers.Number.limitSigDigs'}));
         return OpenLayers.Number.limitSigDigs(this, sig);
     };
 }
@@ -384,7 +409,7 @@ if (!Function.prototype.bind) {
      */
     Function.prototype.bind = function() {
         OpenLayers.Console.warn(OpenLayers.i18n("methodDeprecated",
-                                {'newMethod':'OpenLayers.String.bind'}));
+                                {'newMethod':'OpenLayers.Function.bind'}));
         // new function takes the same arguments with this function up front
         Array.prototype.unshift.apply(arguments, [this]);
         return OpenLayers.Function.bind.apply(null, arguments);
@@ -405,7 +430,7 @@ if (!Function.prototype.bindAsEventListener) {
      */
     Function.prototype.bindAsEventListener = function(object) {
         OpenLayers.Console.warn(OpenLayers.i18n("methodDeprecated",
-                        {'newMethod':'OpenLayers.String.bindAsEventListener'}));
+                        {'newMethod':'OpenLayers.Function.bindAsEventListener'}));
         return OpenLayers.Function.bindAsEventListener(this, object);
     };
 }

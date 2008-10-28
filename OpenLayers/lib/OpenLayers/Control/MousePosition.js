@@ -9,6 +9,9 @@
 
 /**
  * Class: OpenLayers.Control.MousePosition
+ *
+ * Inherits from:
+ *  - <OpenLayers.Control>
  */
 OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
     
@@ -40,7 +43,7 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
      * APIProperty: numDigits
      * {Integer}
      */
-    numdigits: 5,
+    numDigits: 5,
     
     /** 
      * APIProperty: granularity
@@ -144,7 +147,7 @@ OpenLayers.Control.MousePosition = OpenLayers.Class(OpenLayers.Control, {
      * lonLat - {<OpenLayers.LonLat>} Location to display
      */
     formatOutput: function(lonLat) {
-        var digits = parseInt(this.numdigits);
+        var digits = parseInt(this.numDigits);
         var newHtml =
             this.prefix +
             lonLat.lon.toFixed(digits) +

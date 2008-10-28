@@ -2,6 +2,9 @@
  * license.  See http://svn.openlayers.org/trunk/openlayers/license.txt for the
  * full text of the license. */
 
+/**
+ * @requires OpenLayers/Request/XMLHttpRequest.js
+ */
 
 OpenLayers.ProxyHost = "";
 //OpenLayers.ProxyHost = "examples/proxy.cgi?url=";
@@ -30,52 +33,53 @@ OpenLayers.ProxyHost = "";
  */
 
 
-/** 
-* @param {} request
-*/
+/**
+ * Function: OpenLayers.nullHandler
+ * @param {} request
+ */
 OpenLayers.nullHandler = function(request) {
-    alert(OpenLayers.i18n("unhandledRequest", {'statusText':request.statusText}));
+    OpenLayers.Console.userError(OpenLayers.i18n("unhandledRequest", {'statusText':request.statusText}));
 };
 
 /** 
  * Function: loadURL
- * Background load a document.
+ * Background load a document.  For more flexibility in using XMLHttpRequest,
+ *     see the <OpenLayers.Request> methods.
  *
  * Parameters:
  * uri - {String} URI of source doc
- * params - {String} Params on get (doesnt seem to work)
+ * params - {String} or {Object} GET params. Either a string in the form
+ *     "?hello=world&foo=bar" (do not forget the leading question mark)
+ *     or an object in the form {'hello': 'world', 'foo': 'bar}
  * caller - {Object} object which gets callbacks
  * onComplete - {Function} Optional callback for success.  The callback
  *     will be called with this set to caller and will receive the request
- *     object as an argument.
+ *     object as an argument.  Note that if you do not specify an onComplete
+ *     function, <OpenLayers.nullHandler> will be called (which pops up a 
+ *     user friendly error message dialog).
  * onFailure - {Function} Optional callback for failure.  In the event of
  *     a failure, the callback will be called with this set to caller and will
- *     receive the request object as an argument.
+ *     receive the request object as an argument.  Note that if you do not
+ *     specify an onComplete function, <OpenLayers.nullHandler> will be called
+ *     (which pops up a user friendly error message dialog).
  *
  * Returns:
- * {XMLHttpRequest}  The request object.  To abort loading, call
- *     request.abort().
+ * {<OpenLayers.Request.XMLHttpRequest>}  The request object. To abort loading,
+ *     call request.abort().
  */
 OpenLayers.loadURL = function(uri, params, caller,
                                   onComplete, onFailure) {
-
-    var success = (onComplete) ? OpenLayers.Function.bind(onComplete, caller)
-                                : OpenLayers.nullHandler;
-
-    var failure = (onFailure) ? OpenLayers.Function.bind(onFailure, caller)
-                           : OpenLayers.nullHandler;
-
-    // from prototype.js
-    var request = new OpenLayers.Ajax.Request(
-        uri, 
-        {
-            method: 'get', 
-            parameters: params,
-            onComplete: success, 
-            onFailure: failure
-        }
-    );
-    return request.transport;
+    
+    if(typeof params == 'string') {
+        params = OpenLayers.Util.getParameters(params);
+    }
+    var success = (onComplete) ? onComplete : OpenLayers.nullHandler;
+    var failure = (onFailure) ? onFailure : OpenLayers.nullHandler;
+    
+    return OpenLayers.Request.GET({
+        url: uri, params: params,
+        success: success, failure: failure, scope: caller
+    });
 };
 
 /** 
@@ -261,6 +265,7 @@ OpenLayers.Ajax.Base = OpenLayers.Class({
 
 /**
  * Class: OpenLayers.Ajax.Request
+ * *Deprecated*.  Use <OpenLayers.Request> method instead.
  *
  * Inherit:
  *  - <OpenLayers.Ajax.Base>
@@ -400,7 +405,7 @@ OpenLayers.Ajax.Request = OpenLayers.Class(OpenLayers.Ajax.Base, {
                 }
             } else {
                 for (var i in extras) {
-                    headers[i] = pair[i];
+                    headers[i] = extras[i];
                 }
             }
         }

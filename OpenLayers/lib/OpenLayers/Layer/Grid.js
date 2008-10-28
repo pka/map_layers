@@ -101,9 +101,9 @@ OpenLayers.Layer.Grid = OpenLayers.Class(OpenLayers.Layer.HTTPRequest, {
      */
     clearGrid:function() {
         if (this.grid) {
-            for(var iRow=0; iRow < this.grid.length; iRow++) {
+            for(var iRow=0, len=this.grid.length; iRow<len; iRow++) {
                 var row = this.grid[iRow];
-                for(var iCol=0; iCol < row.length; iCol++) {
+                for(var iCol=0, clen=row.length; iCol<clen; iCol++) {
                     var tile = row[iCol];
                     this.removeTileMonitoringHooks(tile);
                     tile.destroy();
@@ -353,7 +353,7 @@ OpenLayers.Layer.Grid = OpenLayers.Class(OpenLayers.Layer.HTTPRequest, {
         var minCols = Math.ceil(viewSize.w/this.tileSize.w) +
                       Math.max(1, 2 * this.buffer);
         
-        var extent = this.map.getMaxExtent();
+        var extent = this.maxExtent;
         var resolution = this.map.getResolution();
         
         var tileLayout = this.calculateGridLayout(bounds, extent, resolution);
@@ -494,7 +494,7 @@ OpenLayers.Layer.Grid = OpenLayers.Class(OpenLayers.Layer.HTTPRequest, {
         } 
         
         // now we go through and draw the tiles in forward order
-        for(var i=0; i < tileQueue.length; i++) {
+        for(var i=0, len=tileQueue.length; i<len; i++) {
             var tile = tileQueue[i];
             tile.draw();
             //mark tile as unqueued for the next time (since tiles are reused)
@@ -613,7 +613,7 @@ OpenLayers.Layer.Grid = OpenLayers.Class(OpenLayers.Layer.HTTPRequest, {
 
         var row = (prepend) ? grid.pop() : grid.shift();
 
-        for (var i=0; i < modelRow.length; i++) {
+        for (var i=0, len=modelRow.length; i<len; i++) {
             var modelTile = modelRow[i];
             var bounds = modelTile.bounds.clone();
             var position = modelTile.position.clone();
@@ -643,7 +643,7 @@ OpenLayers.Layer.Grid = OpenLayers.Class(OpenLayers.Layer.HTTPRequest, {
         var resolution = this.map.getResolution();
         var deltaLon = resolution * deltaX;
 
-        for (var i=0; i<this.grid.length; i++) {
+        for (var i=0, len=this.grid.length; i<len; i++) {
             var row = this.grid[i];
             var modelTileIndex = (prepend) ? 0 : (row.length - 1);
             var modelTile = row[modelTileIndex];
@@ -719,7 +719,7 @@ OpenLayers.Layer.Grid = OpenLayers.Class(OpenLayers.Layer.HTTPRequest, {
      * {<OpenLayers.Bounds>} Bounds of the tile at the given pixel location.
      */
     getTileBounds: function(viewPortPx) {
-        var maxExtent = this.map.getMaxExtent();
+        var maxExtent = this.maxExtent;
         var resolution = this.getResolution();
         var tileMapWidth = resolution * this.tileSize.w;
         var tileMapHeight = resolution * this.tileSize.h;

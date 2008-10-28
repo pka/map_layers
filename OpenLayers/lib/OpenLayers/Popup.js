@@ -48,6 +48,12 @@ OpenLayers.Popup = OpenLayers.Class({
     div: null,
 
     /** 
+     * Property: contentSize 
+     * {<OpenLayers.Size>} the width and height of the content.
+     */
+    contentSize: null,    
+
+    /** 
      * Property: size 
      * {<OpenLayers.Size>} the width and height of the popup.
      */
@@ -55,9 +61,9 @@ OpenLayers.Popup = OpenLayers.Class({
 
     /** 
      * Property: contentHTML 
-     * {String} The HTML that this popup displays.
+     * {String} An HTML string for this popup to display.
      */
-    contentHTML: "",
+    contentHTML: null,
     
     /** 
      * Property: backgroundColor 
@@ -117,6 +123,18 @@ OpenLayers.Popup = OpenLayers.Class({
     maxSize: null,
 
     /** 
+     * Property: displayClass
+     * {String} The CSS class of the popup.
+     */
+    displayClass: "olPopup",
+
+    /** 
+     * Property: contentDisplayClass
+     * {String} The CSS class of the popup content div.
+     */
+    contentDisplayClass: "olPopupContent",
+
+    /** 
      * Property: padding 
      * {int or <OpenLayers.Bounds>} An extra opportunity to specify internal 
      *     padding of the content div inside the popup. This was originally
@@ -171,21 +189,22 @@ OpenLayers.Popup = OpenLayers.Class({
     *               an identifier will be automatically generated. 
     * lonlat - {<OpenLayers.LonLat>}  The position on the map the popup will
     *                                 be shown.
-    * size - {<OpenLayers.Size>}      The size of the popup.
-    * contentHTML - {String}          The HTML content to display inside the 
+    * contentSize - {<OpenLayers.Size>} The size of the content.
+    * contentHTML - {String}          An HTML string to display inside the   
     *                                 popup.
     * closeBox - {Boolean}            Whether to display a close box inside
     *                                 the popup.
     * closeBoxCallback - {Function}   Function to be called on closeBox click.
     */
-    initialize:function(id, lonlat, size, contentHTML, closeBox, closeBoxCallback) {
+    initialize:function(id, lonlat, contentSize, contentHTML, closeBox, closeBoxCallback) {
         if (id == null) {
             id = OpenLayers.Util.createUniqueID(this.CLASS_NAME + "_");
         }
 
         this.id = id;
         this.lonlat = lonlat;
-        this.size = (size != null) ? size 
+
+        this.contentSize = (contentSize != null) ? contentSize 
                                   : new OpenLayers.Size(
                                                    OpenLayers.Popup.WIDTH,
                                                    OpenLayers.Popup.HEIGHT);
@@ -198,7 +217,7 @@ OpenLayers.Popup = OpenLayers.Class({
 
         this.div = OpenLayers.Util.createDiv(this.id, null, null, 
                                              null, null, null, "hidden");
-        this.div.className = 'olPopup';
+        this.div.className = this.displayClass;
         
         var groupDivId = this.id + "_GroupDiv";
         this.groupDiv = OpenLayers.Util.createDiv(groupDivId, null, null, 
@@ -206,9 +225,9 @@ OpenLayers.Popup = OpenLayers.Class({
                                                     "hidden");
 
         var id = this.div.id + "_contentDiv";
-        this.contentDiv = OpenLayers.Util.createDiv(id, null, this.size.clone(), 
+        this.contentDiv = OpenLayers.Util.createDiv(id, null, this.contentSize.clone(), 
                                                     null, "relative");
-        this.contentDiv.className = 'olPopupContent';                                            
+        this.contentDiv.className = this.contentDisplayClass;
         this.groupDiv.appendChild(this.contentDiv);
         this.div.appendChild(this.groupDiv);
 
@@ -298,8 +317,8 @@ OpenLayers.Popup = OpenLayers.Class({
         }
 
         this.moveTo(px);
-        if (!this.autoSize) {
-            this.setSize(this.size);
+        if (!this.autoSize && !this.size) {
+            this.setSize(this.contentSize);
         }
         this.setBackgroundColor();
         this.setOpacity();
@@ -387,13 +406,11 @@ OpenLayers.Popup = OpenLayers.Class({
      * Used to adjust the size of the popup. 
      *
      * Parameters:
-     * size - {<OpenLayers.Size>} the new size of the popup's contents div
-     *     (in pixels).
+     * contentSize - {<OpenLayers.Size>} the new size for the popup's 
+     *     contents div (in pixels).
      */
-    setSize:function(size) { 
-        this.size = size; 
-
-        var contentSize = this.size.clone();
+    setSize:function(contentSize) { 
+        this.size = contentSize.clone(); 
         
         // if our contentDiv has a css 'padding' set on it by a stylesheet, we 
         //  must add that to the desired "size". 
@@ -421,8 +438,10 @@ OpenLayers.Popup = OpenLayers.Class({
         // div itself bigger to take its own padding into effect. this makes 
         // me want to shoot someone, but so it goes.
         if (OpenLayers.Util.getBrowserName() == "msie") {
-            contentSize.w += contentDivPadding.left + contentDivPadding.right;
-            contentSize.h += contentDivPadding.bottom + contentDivPadding.top;
+            this.contentSize.w += 
+                contentDivPadding.left + contentDivPadding.right;
+            this.contentSize.h += 
+                contentDivPadding.bottom + contentDivPadding.top;
         }
 
         if (this.div != null) {
@@ -434,6 +453,78 @@ OpenLayers.Popup = OpenLayers.Class({
             this.contentDiv.style.height = contentSize.h + "px";
         }
     },  
+
+    /**
+     * APIMethod: updateSize
+     * Auto size the popup so that it precisely fits its contents (as 
+     *     determined by this.contentDiv.innerHTML). Popup size will, of
+     *     course, be limited by the available space on the current map
+     */
+    updateSize: function() {
+        
+        // determine actual render dimensions of the contents by putting its
+        // contents into a fake contentDiv (for the CSS) and then measuring it
+        var preparedHTML = "<div class='" + this.contentDisplayClass+ "'>" + 
+            this.contentDiv.innerHTML + 
+            "<div>";
+        var realSize = OpenLayers.Util.getRenderedDimensions(
+            preparedHTML, null, { displayClass: this.displayClass }
+        );
+
+        // is the "real" size of the div is safe to display in our map?
+        var safeSize = this.getSafeContentSize(realSize);
+
+        var newSize = null;
+        if (safeSize.equals(realSize)) {
+            //real size of content is small enough to fit on the map, 
+            // so we use real size.
+            newSize = realSize;
+
+        } else {
+
+            //make a new OL.Size object with the clipped dimensions 
+            // set or null if not clipped.
+            var fixedSize = new OpenLayers.Size();
+            fixedSize.w = (safeSize.w < realSize.w) ? safeSize.w : null;
+            fixedSize.h = (safeSize.h < realSize.h) ? safeSize.h : null;
+        
+            if (fixedSize.w && fixedSize.h) {
+                //content is too big in both directions, so we will use 
+                // max popup size (safeSize), knowing well that it will 
+                // overflow both ways.                
+                newSize = safeSize;
+            } else {
+                //content is clipped in only one direction, so we need to 
+                // run getRenderedDimensions() again with a fixed dimension
+                var clippedSize = OpenLayers.Util.getRenderedDimensions(
+                    preparedHTML, fixedSize, 
+                    { displayClass: this.contentDisplayClass }
+                );
+                
+                //if the clipped size is still the same as the safeSize, 
+                // that means that our content must be fixed in the 
+                // offending direction. If overflow is 'auto', this means 
+                // we are going to have a scrollbar for sure, so we must 
+                // adjust for that.
+                //
+                var currentOverflow = OpenLayers.Element.getStyle(
+                    this.contentDiv, "overflow"
+                );
+                if ( (currentOverflow != "hidden") && 
+                     (clippedSize.equals(safeSize)) ) {
+                    var scrollBar = OpenLayers.Util.getScrollbarWidth();
+                    if (fixedSize.w) {
+                        clippedSize.h += scrollBar;
+                    } else {
+                        clippedSize.w += scrollBar;
+                    }
+                }
+                
+                newSize = this.getSafeContentSize(clippedSize);
+            }
+        }                        
+        this.setSize(newSize);     
+    },    
 
     /**
      * Method: setBackgroundColor
@@ -498,76 +589,83 @@ OpenLayers.Popup = OpenLayers.Class({
      * contentHTML - {String} HTML for the div.
      */
     setContentHTML:function(contentHTML) {
+
         if (contentHTML != null) {
             this.contentHTML = contentHTML;
         }
-        
-        if (this.autoSize) {
-
-            // determine actual render dimensions of the contents
-            var realSize = 
-                 OpenLayers.Util.getRenderedDimensions(this.contentHTML);
-
-            // is the "real" size of the div is safe to display in our map?
-            var safeSize = this.getSafeContentSize(realSize);
-
-            var newSize = null;
-             
-            if (safeSize.equals(realSize)) {
-                //real size of content is small enough to fit on the map, 
-                // so we use real size.
-                newSize = realSize;
-
-            } else {
-
-                //make a new OL.Size object with the clipped dimensions 
-                // set or null if not clipped.
-                var fixedSize = new OpenLayers.Size();
-                fixedSize.w = (safeSize.w < realSize.w) ? safeSize.w : null;
-                fixedSize.h = (safeSize.h < realSize.h) ? safeSize.h : null;
-            
-                if (fixedSize.w && fixedSize.h) {
-                    //content is too big in both directions, so we will use 
-                    // max popup size (safeSize), knowing well that it will 
-                    // overflow both ways.                
-                    newSize = safeSize;
-                } else {
-                    //content is clipped in only one direction, so we need to 
-                    // run getRenderedDimensions() again with a fixed dimension
-                    var clippedSize = OpenLayers.Util.getRenderedDimensions(
-                        this.contentHTML, fixedSize
-                    );
-                    
-                    //if the clipped size is still the same as the safeSize, 
-                    // that means that our content must be fixed in the 
-                    // offending direction. If overflow is 'auto', this means 
-                    // we are going to have a scrollbar for sure, so we must 
-                    // adjust for that.
-                    //
-                    var currentOverflow = OpenLayers.Element.getStyle(
-                        this.contentDiv, "overflow"
-                    );
-                    if ( (currentOverflow != "hidden") && 
-                         (clippedSize.equals(safeSize)) ) {
-                        var scrollBar = OpenLayers.Util.getScrollbarWidth();
-                        if (fixedSize.w) {
-                            clippedSize.h += scrollBar;
-                        } else {
-                            clippedSize.w += scrollBar;
-                        }
-                    }
-                    
-                    newSize = this.getSafeContentSize(clippedSize);
-                }
-            }                        
-            this.setSize(newSize);     
-        }        
-
-        if (this.contentDiv != null) {
+       
+        if ((this.contentDiv != null) && 
+            (this.contentHTML != null) &&
+            (this.contentHTML != this.contentDiv.innerHTML)) {
+       
             this.contentDiv.innerHTML = this.contentHTML;
+       
+            if (this.autoSize) {
+                
+                //if popup has images, listen for when they finish
+                // loading and resize accordingly
+                this.registerImageListeners();
+
+                //auto size the popup to its current contents
+                this.updateSize();
+            }
         }    
+
     },
     
+    /**
+     * Method: registerImageListeners
+     * Called when an image contained by the popup loaded. this function
+     *     updates the popup size, then unregisters the image load listener.
+     */   
+    registerImageListeners: function() { 
+
+        // As the images load, this function will call updateSize() to 
+        // resize the popup to fit the content div (which presumably is now
+        // bigger than when the image was not loaded).
+        // 
+        // If the 'panMapIfOutOfView' property is set, we will pan the newly
+        // resized popup back into view.
+        // 
+        // Note that this function, when called, will have 'popup' and 
+        // 'img' properties in the context.
+        //
+        var onImgLoad = function() {
+            
+            this.popup.updateSize();
+     
+            if ( this.popup.visible() && this.popup.panMapIfOutOfView ) {
+                this.popup.panIntoView();
+            }
+
+            OpenLayers.Event.stopObserving(
+                this.img, "load", this.img._onImageLoad
+            );
+    
+        };
+
+        //cycle through the images and if their size is 0x0, that means that 
+        // they haven't been loaded yet, so we attach the listener, which 
+        // will fire when the images finish loading and will resize the 
+        // popup accordingly to its new size.
+        var images = this.contentDiv.getElementsByTagName("img");
+        for (var i = 0, len = images.length; i < len; i++) {
+            var img = images[i];
+            if (img.width == 0 || img.height == 0) {
+
+                var context = {
+                    'popup': this,
+                    'img': img
+                };
+
+                //expando this function to the image itself before registering
+                // it. This way we can easily and properly unregister it.
+                img._onImgLoad = OpenLayers.Function.bind(onImgLoad, context);
+
+                OpenLayers.Event.observe(img, 'load', img._onImgLoad);
+            }    
+        } 
+    },
 
     /**
      * APIMethod: getSafeContentSize

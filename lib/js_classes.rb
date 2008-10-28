@@ -16,6 +16,9 @@ module Format
 class SLD < JsClass; end
 end
 module Format
+class Filter < JsClass; end
+end
+module Format
 class GML < JsClass; end
 end
 module Format
@@ -28,8 +31,12 @@ module Format
 class Text < JsClass; end
 end
 module Format
+class GPX < JsClass; end
+end
+module Format
 class WMC < JsClass; end
 end
+class Base < JsClass; end
 module Format
 class WFS < JsClass; end
 end
@@ -52,6 +59,14 @@ end
 module Popup
 class Anchored < JsClass; end
 end
+module OpenLayers
+class Protocol < JsClass; end
+end
+module Protocol
+class Response < JsClass; end
+end
+class SUCCESS < JsClass; end
+class FAILURE < JsClass; end
 module OpenLayers
 class Rule < JsClass; end
 end
@@ -93,6 +108,18 @@ class LinearRing < JsClass; end
 end
 module OpenLayers
 class Filter < JsClass; end
+end
+module Strategy
+class Paging < JsClass; end
+end
+module Strategy
+class Fixed < JsClass; end
+end
+module Strategy
+class Cluster < JsClass; end
+end
+module Strategy
+class BBOX < JsClass; end
 end
 module OpenLayers
 class ProxyHost < JsClass; end
@@ -181,6 +208,9 @@ module Layer
 class MapServer < JsClass; end
 end
 module Layer
+class KaMapCache < JsClass; end
+end
+module Layer
 class WFS < JsClass; end
 end
 module Layer
@@ -208,6 +238,9 @@ module OpenLayers
 class Marker < JsClass; end
 end
 module OpenLayers
+class Request < JsClass; end
+end
+module OpenLayers
 class Event < JsClass; end
 end
 module OpenLayers
@@ -222,6 +255,13 @@ end
 module Style
 class SYMBOLIZER_PREFIXES < JsClass; end
 end
+module Protocol
+class SQL < JsClass; end
+end
+module Protocol
+class HTTP < JsClass; end
+end
+class Gears < JsClass; end
 module Tile
 class Image < JsClass; end
 end
@@ -236,6 +276,12 @@ module Filter
 class FeatureId < JsClass; end
 end
 module Filter
+class Spatial < JsClass; end
+end
+class BBOX < JsClass; end
+class INTERSECTS < JsClass; end
+class DWITHIN < JsClass; end
+module Filter
 class Logical < JsClass; end
 end
 class AND < JsClass; end
@@ -248,6 +294,9 @@ class Map < JsClass; end
 end
 module Control
 class Scale < JsClass; end
+end
+module Control
+class ZoomOut < JsClass; end
 end
 module Control
 class KeyboardDefaults < JsClass; end
@@ -269,6 +318,9 @@ class MouseDefaults < JsClass; end
 end
 module Control
 class Button < JsClass; end
+end
+module Control
+class Measure < JsClass; end
 end
 module Control
 class DragFeature < JsClass; end
@@ -311,6 +363,12 @@ module Control
 class ZoomToMaxExtent < JsClass; end
 end
 module Control
+class ZoomIn < JsClass; end
+end
+module Control
+class PanPanel < JsClass; end
+end
+module Control
 class Attribution < JsClass; end
 end
 module Control
@@ -318,6 +376,16 @@ class Panel < JsClass; end
 end
 module Control
 class NavigationHistory < JsClass; end
+end
+module Control
+class Pan < JsClass; end
+end
+class NORTH < JsClass; end
+class SOUTH < JsClass; end
+class EAST < JsClass; end
+class WEST < JsClass; end
+module Control
+class ZoomPanel < JsClass; end
 end
 module Control
 class MouseToolbar < JsClass; end
@@ -392,6 +460,15 @@ module Marker
 class Box < JsClass; end
 end
 module Renderer
+class Canvas < JsClass; end
+end
+module OpenLayers
+class ElementsIndexer < JsClass; end
+end
+module ElementsIndexer
+class IndexingMethods < JsClass; end
+end
+module Renderer
 class Elements < JsClass; end
 end
 module Renderer
@@ -408,6 +485,9 @@ class ImgPath < JsClass; end
 end
 module Util
 class Try < JsClass; end
+end
+module OpenLayers
+class Strategy < JsClass; end
 end
 module OpenLayers
 class Tile < JsClass; end

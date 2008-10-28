@@ -16,6 +16,12 @@
 OpenLayers.Popup.FramedCloud = 
   OpenLayers.Class(OpenLayers.Popup.Framed, {
 
+    /** 
+     * Property: contentDisplayClass
+     * {String} The CSS class of the popup content div.
+     */
+    contentDisplayClass: "olFramedCloudPopupContent",
+
     /**
      * APIProperty: autoSize
      * {Boolean} Framed Cloud is autosizing by default.
@@ -197,7 +203,7 @@ OpenLayers.Popup.FramedCloud =
      * Parameters:
      * id - {String}
      * lonlat - {<OpenLayers.LonLat>}
-     * size - {<OpenLayers.Size>}
+     * contentSize - {<OpenLayers.Size>}
      * contentHTML - {String}
      * anchor - {Object} Object to which we'll anchor the popup. Must expose 
      *     a 'size' (<OpenLayers.Size>) and 'offset' (<OpenLayers.Pixel>) 
@@ -205,12 +211,12 @@ OpenLayers.Popup.FramedCloud =
      * closeBox - {Boolean}
      * closeBoxCallback - {Function} Function to be called on closeBox click.
      */
-    initialize:function(id, lonlat, size, contentHTML, anchor, closeBox, 
+    initialize:function(id, lonlat, contentSize, contentHTML, anchor, closeBox, 
                         closeBoxCallback) {
 
         this.imageSrc = OpenLayers.Util.getImagesLocation() + 'cloud-popup-relative.png';
         OpenLayers.Popup.Framed.prototype.initialize.apply(this, arguments);
-        this.contentDiv.className = "olFramedCloudPopupContent";
+        this.contentDiv.className = this.contentDisplayClass;
     },
 
     /** 

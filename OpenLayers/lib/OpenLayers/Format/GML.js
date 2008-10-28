@@ -50,7 +50,7 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
     layerName: "features",
     
     /**
-     * APIProperty: geometry
+     * APIProperty: geometryName
      * {String} Name of geometry element.  Defaults to "geometry".
      */
     geometryName: "geometry",
@@ -139,7 +139,7 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
         // only accept on geometry per feature - look for highest "order"
         var order = ["MultiPolygon", "Polygon",
                      "MultiLineString", "LineString",
-                     "MultiPoint", "Point", "Envelope"];
+                     "MultiPoint", "Point", "Envelope", "Box"];
         var type, nodeList, geometry, parser;
         for(var i=0; i<order.length; ++i) {
             type = order[i];
@@ -168,6 +168,13 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
             attributes = this.parseAttributes(node);
         }
         var feature = new OpenLayers.Feature.Vector(geometry, attributes);
+        
+        feature.gml = {
+            featureType: node.firstChild.nodeName.split(":")[1],
+            featureNS: node.firstChild.namespaceURI,
+            featureNSPrefix: node.firstChild.prefix
+        };
+                
         // assign fid - this can come from a "fid" or "id" attribute
         var childNode = node.firstChild;
         var fid;
@@ -797,6 +804,23 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
                 gml.appendChild(polyMember);
             }
             return gml;
+
+        },
+ 
+        /**
+         * Method: buildGeometry.bounds
+         * Given an OpenLayers bounds, create a GML box.
+         *
+         * Parameters:
+         * bounds - {<OpenLayers.Geometry.Bounds>} A bounds object.
+         *
+         * Returns:
+         * {DOMElement} A GML box node.
+         */
+        bounds: function(bounds) {
+            var gml = this.createElementNS(this.gmlns, "gml:Box");
+            gml.appendChild(this.buildCoordinatesNode(bounds));
+            return gml;
         }
     },
 
@@ -818,11 +842,17 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
         coordinatesNode.setAttribute("decimal", ".");
         coordinatesNode.setAttribute("cs", ",");
         coordinatesNode.setAttribute("ts", " ");
-        
-        var points = (geometry.components) ? geometry.components : [geometry];
+
         var parts = [];
-        for(var i=0; i<points.length; i++) {
-            parts.push(points[i].x + "," + points[i].y);
+
+        if(geometry instanceof OpenLayers.Bounds){
+            parts.push(geometry.left + "," + geometry.bottom);
+            parts.push(geometry.right + "," + geometry.top);
+        } else {
+            var points = (geometry.components) ? geometry.components : [geometry];
+            for(var i=0; i<points.length; i++) {
+                parts.push(points[i].x + "," + points[i].y);                
+            }            
         }
 
         var txtNode = this.createTextNode(parts.join(" "));

@@ -9,6 +9,7 @@
  * @requires OpenLayers/Geometry/LineString.js
  * @requires OpenLayers/Geometry/Polygon.js
  * @requires OpenLayers/Geometry/Collection.js
+ * @requires OpenLayers/Request/XMLHttpRequest.js
  */
 
 /**
@@ -166,7 +167,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         // Loop throught the following node types in this order and
         // process the nodes found 
         var types = ["Link", "NetworkLink", "Style", "StyleMap", "Placemark"];
-        for(var i=0; i<types.length; ++i) {
+        for(var i=0, len=types.length; i<len; ++i) {
             var type = types[i];
 
             var nodes = this.getElementsByTagNameNS(data, "*", type);
@@ -227,7 +228,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         var newOptions = OpenLayers.Util.extend({}, options);
         newOptions.depth++;
 
-        for(var i=0; i < nodes.length; i++) {
+        for(var i=0, len=nodes.length; i<len; i++) {
             var href = this.parseProperty(nodes[i], "*", "href");
             if(href && !this.fetched[href]) {
                 this.fetched[href] = true; // prevent reloading the same urls
@@ -249,11 +250,9 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
      * 
      */
     fetchLink: function(href) {
-        var request = new OpenLayers.Ajax.Request(href, 
-                      {method: 'get', asynchronous: false });
-
-        if (request && request.transport) {
-            return request.transport.responseText;
+        var request = OpenLayers.Request.GET({url: href, async: false});
+        if (request) {
+            return request.responseText;
         }
     },
 
@@ -268,7 +267,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
      * 
      */
     parseStyles: function(nodes, options) {
-        for(var i=0; i < nodes.length; i++) {
+        for(var i=0, len=nodes.length; i<len; i++) {
             var style = this.parseStyle(nodes[i]);
             if(style) {
                 styleName = (options.styleBaseUrl || "") + "#" + style.id;
@@ -292,7 +291,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         
         var types = ["LineStyle", "PolyStyle", "IconStyle", "BalloonStyle"];
         var type, nodeList, geometry, parser;
-        for(var i=0; i<types.length; ++i) {
+        for(var i=0, len=types.length; i<len; ++i) {
             type = types[i];
             styleTypeNode = this.getElementsByTagNameNS(node, 
                                                    "*", type)[0];
@@ -490,13 +489,13 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         // Only the default or "normal" part of the StyleMap is processed now
         // To do the select or "highlight" bit, we'd need to change lots more
 
-        for(var i=0; i < nodes.length; i++) {
+        for(var i=0, len=nodes.length; i<len; i++) {
             var node = nodes[i];
             var pairs = this.getElementsByTagNameNS(node, "*", 
                             "Pair");
 
             var id = node.getAttribute("id");
-            for (var j=0; j<pairs.length; j++) {
+            for (var j=0, jlen=pairs.length; j<jlen; j++) {
                 var pair = pairs[j];
                 // Use the shortcut in the SLD format to quickly retrieve the 
                 // value of a node. Maybe it's good to have a method in 
@@ -531,7 +530,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
      */
     parseFeatures: function(nodes, options) {
         var features = new Array(nodes.length);
-        for(var i=0; i < nodes.length; i++) {
+        for(var i=0, len=nodes.length; i<len; i++) {
             var featureNode = nodes[i];
             var feature = this.parseFeature.apply(this,[featureNode]) ;
             if(feature) {
@@ -542,17 +541,19 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
                     feature.style = this.getStyle(feature.attributes.styleUrl);
                 }
 
-                // Make sure that <Style> nodes within a placemark are 
-                // processed as well
-                var inlineStyleNode = this.getElementsByTagNameNS(featureNode,
-                                                       "*",
-                                                       "Style")[0];
-                if (inlineStyleNode) {
-                    var inlineStyle= this.parseStyle(inlineStyleNode);
-                    if (inlineStyle) {
-                        feature.style = OpenLayers.Util.extend({}, 
-                                            feature.style);
-                        OpenLayers.Util.extend(feature.style, inlineStyle);
+                if (this.extractStyles) {
+                    // Make sure that <Style> nodes within a placemark are 
+                    // processed as well
+                    var inlineStyleNode = this.getElementsByTagNameNS(featureNode,
+                                                        "*",
+                                                        "Style")[0];
+                    if (inlineStyleNode) {
+                        var inlineStyle= this.parseStyle(inlineStyleNode);
+                        if (inlineStyle) {
+                            feature.style = OpenLayers.Util.extend(
+                                feature.style, inlineStyle
+                            );
+                        }
                     }
                 }
 
@@ -583,7 +584,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         // only accept one geometry per feature - look for highest "order"
         var order = ["MultiGeometry", "Polygon", "LineString", "Point"];
         var type, nodeList, geometry, parser;
-        for(var i=0; i<order.length; ++i) {
+        for(var i=0, len=order.length; i<len; ++i) {
             type = order[i];
             this.internalns = node.namespaceURI ? 
                     node.namespaceURI : this.kmlns;
@@ -777,7 +778,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
             if(numRings > 0) {
                 // this assumes exterior ring first, inner rings after
                 var ring;
-                for(var i=0; i<nodeList.length; ++i) {
+                for(var i=0, len=nodeList.length; i<len; ++i) {
                     ring = this.parseGeometry.linestring.apply(this,
                                                         [nodeList[i], true]);
                     if(ring) {
@@ -805,7 +806,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
             var child, parser;
             var parts = [];
             var children = node.childNodes;
-            for(var i=0; i<children.length; ++i ) {
+            for(var i=0, len=children.length; i<len; ++i ) {
                 child = children[i];
                 if(child.nodeType == 1) {
                     var type = (child.prefix) ?
@@ -836,7 +837,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         // assume attribute nodes are type 1 children with a type 3 or 4 child
         var child, grandchildren, grandchild;
         var children = node.childNodes;
-        for(var i=0; i<children.length; ++i) {
+        for(var i=0, len=children.length; i<len; ++i) {
             child = children[i];
             if(child.nodeType == 1) {
                 grandchildren = child.childNodes;
@@ -908,7 +909,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         }
         var kml = this.createElementNS(this.kmlns, "kml");
         var folder = this.createFolderXML();
-        for(var i=0; i<features.length; ++i) {
+        for(var i=0, len=features.length; i<len; ++i) {
             folder.appendChild(this.createPlacemarkXML(features[i]));
         }
         kml.appendChild(folder);
@@ -1107,7 +1108,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
             var kml = this.createElementNS(this.kmlns, "Polygon");
             var rings = geometry.components;
             var ringMember, ringGeom, type;
-            for(var i=0; i<rings.length; ++i) {
+            for(var i=0, len=rings.length; i<len; ++i) {
                 type = (i==0) ? "outerBoundaryIs" : "innerBoundaryIs";
                 ringMember = this.createElementNS(this.kmlns, type);
                 ringGeom = this.buildGeometry.linearring.apply(this,
@@ -1146,7 +1147,7 @@ OpenLayers.Format.KML = OpenLayers.Class(OpenLayers.Format.XML, {
         collection: function(geometry) {
             var kml = this.createElementNS(this.kmlns, "MultiGeometry");
             var child;
-            for(var i=0; i<geometry.components.length; ++i) {
+            for(var i=0, len=geometry.components.length; i<len; ++i) {
                 child = this.buildGeometryNode.apply(this,
                                                      [geometry.components[i]]);
                 if(child) {

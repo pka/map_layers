@@ -14,6 +14,12 @@
 OpenLayers.Format = OpenLayers.Class({
     
     /**
+     * Property: options
+     * {Object} A reference to options passed to the constructor.
+     */
+    options: null,
+    
+    /**
      * APIProperty: externalProjection
      * {<OpenLayers.Projection>} When passed a externalProjection and
      *     internalProjection, the format will reproject the geometries it
@@ -54,6 +60,14 @@ OpenLayers.Format = OpenLayers.Class({
      */
     initialize: function(options) {
         OpenLayers.Util.extend(this, options);
+        this.options = options;
+    },
+    
+    /**
+     * APIMethod: destroy
+     * Clean up.
+     */
+    destroy: function() {
     },
 
     /**
@@ -68,7 +82,7 @@ OpenLayers.Format = OpenLayers.Class({
      * Depends on the subclass
      */
     read: function(data) {
-        alert(OpenLayers.i18n("readNotImplemented"));
+        OpenLayers.Console.userError(OpenLayers.i18n("readNotImplemented"));
     },
     
     /**
@@ -82,7 +96,7 @@ OpenLayers.Format = OpenLayers.Class({
      * {String} A string representation of the object.
      */
     write: function(object) {
-        alert(OpenLayers.i18n("writeNotImplemented"));
+        OpenLayers.Console.userError(OpenLayers.i18n("writeNotImplemented"));
     },
 
     CLASS_NAME: "OpenLayers.Format"

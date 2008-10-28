@@ -4,7 +4,7 @@
 
 /**
  * @requires OpenLayers/Layer/Vector.js
- * @requires OpenLayers/Ajax.js
+ * @requires OpenLayers/Request/XMLHttpRequest.js
  */
 
 /**
@@ -100,7 +100,12 @@ OpenLayers.Layer.GML = OpenLayers.Class(OpenLayers.Layer.Vector, {
      */
     loadGML: function() {
         if (!this.loaded) {
-            var results = OpenLayers.loadURL(this.url, null, this, this.requestSuccess, this.requestFailure);
+            OpenLayers.Request.GET({
+                url: this.url,
+                success: this.requestSuccess,
+                failure: this.requestFailure,
+                scope: this
+            });
             this.loaded = true;
         }    
     },    
@@ -157,7 +162,7 @@ OpenLayers.Layer.GML = OpenLayers.Class(OpenLayers.Layer.Vector, {
      * request - {String} 
      */
     requestFailure: function(request) {
-        alert(OpenLayers.i18n("errorLoadingGML", {'url':this.url}));
+        OpenLayers.Console.userError(OpenLayers.i18n("errorLoadingGML", {'url':this.url}));
         this.events.triggerEvent("loadend");
     },
 

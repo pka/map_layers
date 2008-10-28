@@ -4,6 +4,19 @@ import sys
 import os
 import re
 import urllib2
+import time
+from xml.dom.minidom import Document
+
+try:
+    import xml.etree.ElementTree as ElementTree 
+except ImportError:
+    try:
+        import cElementTree as ElementTree
+    except ImportError:
+        try:
+            import elementtree.ElementTree as ElementTree
+        except ImportError:
+            import lxml.etree as ElementTree
 
 missing_deps = False
 try:
@@ -12,6 +25,8 @@ try:
 except ImportError, E:
     missing_deps = E 
 
+feedName = "example-list.xml"
+feedPath = "http://openlayers.org/dev/examples/"
 
 def getListOfOnlineExamples(baseUrl):
     """
@@ -27,10 +42,10 @@ def getListOfOnlineExamples(baseUrl):
     
 def getListOfExamples(relPath):
     """
-    returns list of .html filenames within a given path
+    returns list of .html filenames within a given path - excludes example-list.html
     """
     examples = os.listdir(relPath)
-    examples = [example for example in examples if example.endswith('.html')]
+    examples = [example for example in examples if example.endswith('.html') and example != "example-list.html"]
     return examples
     
 
@@ -80,8 +95,100 @@ def parseHtml(html,ids):
     classes = getRelatedClasses(html)
     d['classes'] = classes
     return d
-    
 
+def getSvnInfo(path):
+    h = os.popen("svn info %s --xml" % path)
+    tree = ElementTree.fromstring(h.read())
+    h.close()
+    d = {
+        'url': tree.findtext('entry/url'),
+        'author': tree.findtext('entry/commit/author'),
+        'date': tree.findtext('entry/commit/date')
+    }
+    return d
+    
+def createFeed(examples):
+    doc = Document()
+    atomuri = "http://www.w3.org/2005/Atom"
+    feed = doc.createElementNS(atomuri, "feed")
+    feed.setAttribute("xmlns", atomuri)
+    title = doc.createElementNS(atomuri, "title")
+    title.appendChild(doc.createTextNode("OpenLayers Examples"))
+    feed.appendChild(title)
+    link = doc.createElementNS(atomuri, "link")
+    link.setAttribute("rel", "self")
+    link.setAttribute("href", feedPath + feedName)
+    
+    modtime = time.strftime("%Y-%m-%dT%I:%M:%SZ", time.gmtime())
+    id = doc.createElementNS(atomuri, "id")
+    id.appendChild(doc.createTextNode("%s%s#%s" % (feedPath, feedName, modtime)))
+    feed.appendChild(id)
+    
+    updated = doc.createElementNS(atomuri, "updated")
+    updated.appendChild(doc.createTextNode(modtime))
+    feed.appendChild(updated)
+
+    examples.sort(key=lambda x:x["modified"])
+    for example in sorted(examples, key=lambda x:x["modified"], reverse=True):
+        entry = doc.createElementNS(atomuri, "entry")
+        
+        title = doc.createElementNS(atomuri, "title")
+        title.appendChild(doc.createTextNode(example["title"] or example["example"]))
+        entry.appendChild(title)
+        
+        link = doc.createElementNS(atomuri, "link")
+        link.setAttribute("href", "%s%s" % (feedPath, example["example"]))
+        entry.appendChild(link)
+    
+        summary = doc.createElementNS(atomuri, "summary")
+        summary.appendChild(doc.createTextNode(example["shortdesc"] or example["example"]))
+        entry.appendChild(summary)
+        
+        updated = doc.createElementNS(atomuri, "updated")
+        updated.appendChild(doc.createTextNode(example["modified"]))
+        entry.appendChild(updated)
+        
+        author = doc.createElementNS(atomuri, "author")
+        name = doc.createElementNS(atomuri, "name")
+        name.appendChild(doc.createTextNode(example["author"]))
+        author.appendChild(name)
+        entry.appendChild(author)
+        
+        id = doc.createElementNS(atomuri, "id")
+        id.appendChild(doc.createTextNode("%s%s#%s" % (feedPath, example["example"], example["modified"])))
+        entry.appendChild(id)
+        
+        feed.appendChild(entry)
+
+    doc.appendChild(feed)
+    return doc    
+    
+def wordIndex(examples):
+    """
+    Create an inverted index based on words in title and shortdesc.  Keys are
+    lower cased words.  Values are dictionaries with example index keys and
+    count values.
+    """
+    index = {}
+    unword = re.compile("\\W+")
+    keys = ["shortdesc", "title"]
+    for i in range(len(examples)):
+        for key in keys:
+            text = examples[i][key]
+            if text:
+                words = unword.split(text)
+                for word in words:
+                    if word:
+                        word = word.lower()
+                        if index.has_key(word):
+                            if index[word].has_key(i):
+                                index[word][i] += 1
+                            else:
+                                index[word][i] = 1
+                        else:
+                            index[word] = {i: 1}
+    return index
+    
 if __name__ == "__main__":
 
     if missing_deps:
@@ -91,7 +198,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         outFile = open(sys.argv[1],'w')
     else:
-        outFile = open('../doc/examples.js','w')
+        outFile = open('../examples/example-list.js','w')
     
     examplesLocation = '../examples'
     print 'Reading examples from %s and writing out to %s' % (examplesLocation, outFile.name)
@@ -105,20 +212,40 @@ if __name__ == "__main__":
 
     examples = getListOfExamples(examplesLocation)
 
+    modtime = time.strftime("%Y-%m-%dT%I:%M:%SZ", time.gmtime())
+
     for example in examples:
         url = os.path.join(examplesLocation,example)
         html = getExampleHtml(url)
         tagvalues = parseHtml(html,docIds)
         tagvalues['example'] = example
-        tagvalues['link'] = url
+        # add in svn info
+        d = getSvnInfo(url)
+        tagvalues["modified"] = d["date"] or modtime
+        tagvalues["author"] = d["author"] or "anonymous"
+        tagvalues['link'] = example
+
         exampleList.append(tagvalues)
         
+    print
+    
     exampleList.sort(key=lambda x:x['example'].lower())
-    json = simplejson.dumps(exampleList)
+    
+    index = wordIndex(exampleList)
+
+    json = simplejson.dumps({"examples": exampleList, "index": index})
     #give the json a global variable we can use in our js.  This should be replaced or made optional.
-    json = 'var examples=' + json 
+    json = 'var info=' + json 
     outFile.write(json)
     outFile.close()
+
+    print "writing feed to ../examples/%s " % feedName
+    atom = open('../examples/%s' % feedName, 'w')
+    doc = createFeed(exampleList)
+    atom.write(doc.toxml())
+    atom.close()
+
+
     print 'complete'
 
     

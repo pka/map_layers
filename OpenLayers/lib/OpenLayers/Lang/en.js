@@ -75,7 +75,7 @@ OpenLayers.Lang.en = {
         "To get rid of this message, select a new BaseLayer " +
         "in the layer switcher in the upper-right corner.<br><br>" +
         "Most likely, this is because the ${layerLib} library " +
-        "script was either not correctly included.<br><br>" +
+        "script was not correctly included.<br><br>" +
         "Developers: For help getting this working correctly, " +
         "<a href='http://trac.openlayers.org/wiki/${layerLib}' " +
         "target='_blank'>click here</a>",
@@ -116,5 +116,8 @@ OpenLayers.Lang.en = {
     'pagePositionFailed':
         "OpenLayers.Util.pagePosition failed: element with id ${elemId} may be misplaced.",
                     
-    'end': ''
+    'end': '',
+
+    // console message
+    'filterEvaluateNotImplemented': "evaluate is not implemented for this filter type."
 };

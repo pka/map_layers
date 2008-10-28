@@ -3,6 +3,11 @@
  * full text of the license. */
 
 /**
+ * @requires OpenLayers/Rule.js
+ * @requires OpenLayers/Filter.js
+ * @requires OpenLayers/Filter/FeatureId.js
+ * @requires OpenLayers/Filter/Logical.js
+ * @requires OpenLayers/Filter/Comparison.js
  * @requires OpenLayers/Format/SLD.js
  */
 
@@ -47,7 +52,9 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         strokeColor: "#000000",
         strokeOpacity: 1,
         strokeWidth: 1,
-        pointRadius: 6
+        strokeDashstyle: "solid",
+        pointRadius: 3,
+        graphicName: "square"
     },
     
     /**
@@ -60,6 +67,13 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      *     this instance.
      */
     initialize: function(options) {
+        // extend with ogc:Filter readers and writers
+        this.readers["ogc"] = OpenLayers.Format.Filter.v1.prototype.readers["ogc"];
+        this.writers["ogc"] = OpenLayers.Format.Filter.v1.prototype.writers["ogc"];
+        // extend with custom filter methods that may get changed
+        this.readOgcExpression = OpenLayers.Format.Filter.v1.prototype.readOgcExpression;
+        this.getFilterType = OpenLayers.Format.Filter.v1.prototype.getFilterType;
+        this.filterMap = OpenLayers.Format.Filter.v1.prototype.filterMap;
         OpenLayers.Format.XML.prototype.initialize.apply(this, [options]);
     },
     
@@ -110,7 +124,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 };
                 this.readChildNodes(node, layer);
                 // give each of the user styles this layer name
-                for(var i=0; i<layer.userStyles.length; ++i) {
+                for(var i=0, len=layer.userStyles.length; i<len; ++i) {
                     layer.userStyles[i].layerName = layer.name;
                 }
                 sld.namedLayers[layer.name] = layer;
@@ -205,7 +219,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     "graphicName", "rotation", "graphicFormat"
                 ];
                 var prop, value;
-                for(var i=0; i<properties.length; ++i) {
+                for(var i=0, len=properties.length; i<len; ++i) {
                     prop = properties[i];
                     value = graphic[prop];
                     if(value != undefined) {
@@ -217,10 +231,13 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     symbolizer.graphicOpacity = graphic.opacity;
                 }
                 if(graphic.size != undefined) {
-                    symbolizer.pointRadius = graphic.size;
+                    symbolizer.pointRadius = graphic.size / 2;
                 }
                 if(graphic.href != undefined) {
                     symbolizer.externalGraphic = graphic.href;
+                }
+                if(graphic.rotation != undefined) {
+                    symbolizer.rotation = graphic.rotation;
                 }
             },
             "ExternalGraphic": function(node, graphic) {
@@ -264,146 +281,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
             "Format": function(node, graphic) {
                 graphic.graphicFormat = this.getChildValue(node);
             }
-        },
-        "ogc": {
-            "Filter": function(node, rule) {
-                // Filters correspond to subclasses of OpenLayers.Filter.
-                // Since they contain information we don't persist, we
-                // create a temporary object and then pass on the filter
-                // (ogc:Filter) to the parent rule (sld:Rule).
-                var obj = {
-                    fids: [],
-                    filters: []
-                };
-                this.readChildNodes(node, obj);
-                if(obj.fids.length > 0) {
-                    rule.filter = new OpenLayers.Filter.FeatureId({
-                        fids: obj.fids
-                    });
-                } else if(obj.filters.length > 0) {
-                    rule.filter = obj.filters[0];
-                }
-            },
-            "FeatureId": function(node, obj) {
-                var fid = node.getAttribute("fid");
-                if(fid) {
-                    obj.fids.push(fid);
-                }
-            },
-            "And": function(node, obj) {
-                var filter = new OpenLayers.Filter.Logical({
-                    type: OpenLayers.Filter.Logical.AND
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "Or": function(node, obj) {
-                var filter = new OpenLayers.Filter.Logical({
-                    type: OpenLayers.Filter.Logical.OR
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "Not": function(node, obj) {
-                var filter = new OpenLayers.Filter.Logical({
-                    type: OpenLayers.Filter.Logical.NOT
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsEqualTo": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.EQUAL_TO
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsNotEqualTo": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.NOT_EQUAL_TO
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsLessThan": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.LESS_THAN
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsGreaterThan": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.GREATER_THAN
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsLessThanOrEqualTo": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.LESS_THAN_OR_EQUAL_TO
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsGreaterThanOrEqualTo": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.GREATER_THAN_OR_EQUAL_TO
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsBetween": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.BETWEEN
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsLike": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.LIKE
-                });
-                this.readChildNodes(node, filter);
-                var wildCard = node.getAttribute("wildCard");
-                var singleChar = node.getAttribute("singleChar");
-                var esc = node.getAttribute("escape");
-                filter.value2regex(wildCard, singleChar, esc);
-                obj.filters.push(filter);
-            },
-            "Literal": function(node, obj) {
-                obj.value = this.getChildValue(node);
-            },
-            "PropertyName": function(node, filter) {
-                filter.property = this.getChildValue(node);
-            },
-            "LowerBoundary": function(node, filter) {
-                filter.lowerBoundary = this.readOgcExpression(node);
-            },
-            "UpperBoundary": function(node, filter) {
-                filter.upperBoundary = this.readOgcExpression(node);
-            }
         }
-    },
-    
-    /**
-     * Method: readOgcExpression
-     * Limited support for OGC expressions.
-     *
-     * Parameters:
-     * node - {DOMElement} A DOM element that contains an ogc:expression.
-     *
-     * Returns:
-     * {String} A value to be used in a symbolizer.
-     */
-    readOgcExpression: function(node) {
-        var obj = {};
-        this.readChildNodes(node, obj);
-        var value = obj.value;
-        if(!value) {
-            value = this.getChildValue(node);
-        }
-        return value;
     },
     
     /**
@@ -416,8 +294,11 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         "stroke-opacity": "strokeOpacity",
         "stroke-width": "strokeWidth",
         "stroke-linecap": "strokeLinecap",
+        "stroke-dasharray": "strokeDashstyle",
         "fill": "fillColor",
-        "fill-opacity": "fillOpacity"
+        "fill-opacity": "fillOpacity",
+        "font-family": "fontFamily",
+        "font-size": "fontSize"
     },
     
     /**
@@ -552,7 +433,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
 
                 // add in named styles
                 if(layer.namedStyles) {
-                    for(var i=0; i<layer.namedStyles.length; ++i) {
+                    for(var i=0, len=layer.namedStyles.length; i<len; ++i) {
                         this.writeNode(
                             node, "NamedStyle", layer.namedStyles[i]
                         );
@@ -561,7 +442,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 
                 // add in user styles
                 if(layer.userStyles) {
-                    for(var i=0; i<layer.userStyles.length; ++i) {
+                    for(var i=0, len=layer.userStyles.length; i<len; ++i) {
                         this.writeNode(
                             node, "UserStyle", layer.userStyles[i]
                         );
@@ -614,7 +495,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 // related to FeatureTypeStyle
                 
                 // add in rules
-                for(var i=0; i<style.rules.length; ++i) {
+                for(var i=0, len=style.rules.length; i<len; ++i) {
                     this.writeNode(node, "Rule", style.rules[i]);
                 }
                 
@@ -660,7 +541,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 // add in symbolizers (relies on geometry type keys)
                 var types = OpenLayers.Style.SYMBOLIZER_PREFIXES;
                 var type, symbolizer;
-                for(var i=0; i<types.length; ++i) {
+                for(var i=0, len=types.length; i<len; ++i) {
                     type = types[i];
                     symbolizer = rule.symbolizer[type];
                     if(symbolizer) {
@@ -724,6 +605,68 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     value: obj.symbolizer[obj.key]
                 });
             },
+            "TextSymbolizer": function(symbolizer) {
+                var node = this.createElementNSPlus("TextSymbolizer");
+                // add in optional Label
+                if(symbolizer.label != null) {
+                    this.writeNode(node, "Label", symbolizer.label);
+                }
+                // add in optional Font
+                if(symbolizer.fontFamily != null ||
+                   symbolizer.fontSize != null) {
+                    this.writeNode(node, "Font", symbolizer);
+                }
+                // add in optional Fill
+                if(symbolizer.fillColor != null ||
+                   symbolizer.fillOpacity != null) {
+                    this.writeNode(node, "Fill", symbolizer);
+                }
+                return node;
+            },
+            "Font": function(symbolizer) {
+                var node = this.createElementNSPlus("Font");
+                // add in CssParameters
+                if(symbolizer.fontFamily) {
+                    this.writeNode(
+                        node, "CssParameter",
+                        {symbolizer: symbolizer, key: "fontFamily"}
+                    );
+                }
+                if(symbolizer.fontSize) {
+                    this.writeNode(
+                        node, "CssParameter",
+                        {symbolizer: symbolizer, key: "fontSize"}
+                    );
+                }
+                return node;
+            },
+            "Label": function(label) {
+                // only the simplest of ogc:expression handled
+                // {label: "some text and a ${propertyName}"}
+                var node = this.createElementNSPlus("Label");
+                var tokens = label.split("${");
+                node.appendChild(this.createTextNode(tokens[0]));
+                var item, last;
+                for(var i=1, len=tokens.length; i<len; i++) {
+                    item = tokens[i];
+                    last = item.indexOf("}"); 
+                    if(last > 0) {
+                        this.writeNode(
+                            node, "ogc:PropertyName",
+                            {property: item.substring(0, last)}
+                        );
+                        node.appendChild(
+                            this.createTextNode(item.substring(++last))
+                        );
+                    } else {
+                        // no ending }, so this is a literal ${
+                        node.appendChild(
+                            this.createTextNode("${" + item)
+                        );
+                    }
+                }
+                return node;
+            },
             "PolygonSymbolizer": function(symbolizer) {
                 var node = this.createElementNSPlus("PolygonSymbolizer");
                 this.writeNode(node, "Fill", symbolizer);
@@ -767,7 +710,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     this.writeNode(node, "Opacity", symbolizer.graphicOpacity);
                 }
                 if(symbolizer.pointRadius != undefined) {
-                    this.writeNode(node, "Size", symbolizer.pointRadius);
+                    this.writeNode(node, "Size", symbolizer.pointRadius * 2);
                 }
                 if(symbolizer.rotation != undefined) {
                     this.writeNode(node, "Rotation", symbolizer.rotation);
@@ -824,175 +767,9 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     value: format
                 });
             }
-        },
-        "ogc": {
-            "Filter": function(filter) {
-                var node = this.createElementNSPlus("ogc:Filter");
-                var sub = filter.CLASS_NAME.split(".").pop();
-                if(sub == "FeatureId") {
-                    for(var i=0; i<filter.fids.length; ++i) {
-                        this.writeNode(node, "FeatureId", filter.fids[i]);
-                    }
-                } else {
-                    this.writeNode(node, this.getFilterType(filter), filter);
-                }
-                return node;
-            },
-            "FeatureId": function(fid) {
-                return this.createElementNSPlus("ogc:FeatureId", {
-                    attributes: {fid: fid}
-                });
-            },
-            "And": function(filter) {
-                var node = this.createElementNSPlus("ogc:And");
-                var childFilter;
-                for(var i=0; i<filter.filters.length; ++i) {
-                    childFilter = filter.filters[i];
-                    this.writeNode(
-                        node, this.getFilterType(childFilter), childFilter
-                    );
-                }
-                return node;
-            },
-            "Or": function(filter) {
-                var node = this.createElementNSPlus("ogc:Or");
-                var childFilter;
-                for(var i=0; i<filter.filters.length; ++i) {
-                    childFilter = filter.filters[i];
-                    this.writeNode(
-                        node, this.getFilterType(childFilter), childFilter
-                    );
-                }
-                return node;
-            },
-            "Not": function(filter) {
-                var node = this.createElementNSPlus("ogc:Not");
-                var childFilter = filter.filters[0];
-                this.writeNode(
-                    node, this.getFilterType(childFilter), childFilter
-                );
-                return node;
-            },
-            "PropertyIsEqualTo": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsEqualTo");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
-                return node;
-            },
-            "PropertyIsNotEqualTo": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsNotEqualTo");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
-                return node;
-            },
-            "PropertyIsLessThan": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsLessThan");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);                
-                return node;
-            },
-            "PropertyIsGreaterThan": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsGreaterThan");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
-                return node;
-            },
-            "PropertyIsLessThanOrEqualTo": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsLessThanOrEqualTo");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
-                return node;
-            },
-            "PropertyIsGreaterThanOrEqualTo": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsGreaterThanOrEqualTo");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
-                return node;
-            },
-            "PropertyIsBetween": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsBetween");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "LowerBoundary", filter);
-                this.writeNode(node, "UpperBoundary", filter);
-                return node;
-            },
-            "PropertyIsLike": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsLike", {
-                    attributes: {
-                        wildCard: "*", singleChar: ".", escape: "!"
-                    }
-                });
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                // convert regex string to ogc string
-                this.writeNode(node, "Literal", filter.regex2value());
-                return node;
-            },
-            "PropertyName": function(filter) {
-                // no ogc:expression handling for now
-                return this.createElementNSPlus("ogc:PropertyName", {
-                    value: filter.property
-                });
-            },
-            "Literal": function(value) {
-                // no ogc:expression handling for now
-                return this.createElementNSPlus("ogc:Literal", {
-                    value: value
-                });
-            },
-            "LowerBoundary": function(filter) {
-                // no ogc:expression handling for now
-                var node = this.createElementNSPlus("ogc:LowerBoundary");
-                this.writeNode(node, "Literal", filter.lowerBoundary);
-                return node;
-            },
-            "UpperBoundary": function(filter) {
-                // no ogc:expression handling for now
-                var node = this.createElementNSPlus("ogc:UpperBoundary");
-                this.writeNode(node, "Literal", filter.upperBoundary);
-                return node;
-            }
         }
     },
     
-    /**
-     * Method: getFilterType
-     */
-    getFilterType: function(filter) {
-        var filterType = this.filterMap[filter.type];
-        if(!filterType) {
-            throw "SLD writing not supported for rule type: " + filter.type;
-        }
-        return filterType;
-    },
-    
-    /**
-     * Property: filterMap
-     * {Object} Contains a member for each filter type.  Values are node names
-     *     for corresponding OGC Filter child elements.
-     */
-    filterMap: {
-        "&&": "And",
-        "||": "Or",
-        "!": "Not",
-        "==": "PropertyIsEqualTo",
-        "!=": "PropertyIsNotEqualTo",
-        "<": "PropertyIsLessThan",
-        ">": "PropertyIsGreaterThan",
-        "<=": "PropertyIsLessThanOrEqualTo",
-        ">=": "PropertyIsGreaterThanOrEqualTo",
-        "..": "PropertyIsBetween",
-        "~": "PropertyIsLike"
-    },
-    
-
     /**
      * Methods below this point are of general use for versioned XML parsers.
      * These are candidates for an abstract class.
@@ -1031,7 +808,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
     readChildNodes: function(node, obj) {
         var children = node.childNodes;
         var child, group, reader, prefix, local;
-        for(var i=0; i<children.length; ++i) {
+        for(var i=0, len=children.length; i<len; ++i) {
             child = children[i];
             if(child.nodeType == 1) {
                 prefix = this.getNamespacePrefix(child.namespaceURI);

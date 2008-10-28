@@ -105,6 +105,21 @@ OpenLayers.Event = {
     },
 
     /**
+     * Method: isRightClick
+     * Determine whether event was caused by a right mouse click. 
+     *
+     * Parameters:
+     * event - {Event} 
+     * 
+     * Returns:
+     * {Boolean}
+     */
+     isRightClick: function(event) {
+        return (((event.which) && (event.which == 3)) ||
+                ((event.button) && (event.button == 2)));
+    },
+     
+    /**
      * Method: stop
      * Stops an event from propagating. 
      *
@@ -352,7 +367,7 @@ OpenLayers.Events = OpenLayers.Class({
     BROWSER_EVENTS: [
         "mouseover", "mouseout",
         "mousedown", "mouseup", "mousemove", 
-        "click", "dblclick",
+        "click", "dblclick", "rightclick", "dblrightclick",
         "resize", "focus", "blur"
     ],
 
@@ -392,6 +407,34 @@ OpenLayers.Events = OpenLayers.Class({
      */
     fallThrough: null,
 
+    /** 
+     * APIProperty: includeXY
+     * {Boolean} Should the .xy property automatically be created for browser
+     *    mouse events? In general, this should be false. If it is true, then
+     *    mouse events will automatically generate a '.xy' property on the 
+     *    event object that is passed. (Prior to OpenLayers 2.7, this was true
+     *    by default.) Otherwise, you can call the getMousePosition on the
+     *    relevant events handler on the object available via the 'evt.object'
+     *    property of the evt object. So, for most events, you can call:
+     *    function named(evt) { 
+     *        this.xy = this.object.events.getMousePosition(evt) 
+     *    } 
+     *
+     *    This option typically defaults to false for performance reasons:
+     *    when creating an events object whose primary purpose is to manage
+     *    relatively positioned mouse events within a div, it may make
+     *    sense to set it to true.
+     *
+     *    This option is also used to control whether the events object caches
+     *    offsets. If this is false, it will not: the reason for this is that
+     *    it is only expected to be called many times if the includeXY property
+     *    is set to true. If you set this to true, you are expected to clear 
+     *    the offset cache manually (using this.clearMouseCache()) if:
+     *        the border of the element changes
+     *        the location of the element in the page changes
+    */
+    includeXY: false,      
+
     /**
      * Constructor: OpenLayers.Events
      * Construct an OpenLayers.Events object.
@@ -402,11 +445,12 @@ OpenLayers.Events = OpenLayers.Class({
      * eventTypes - {Array(String)} Array of custom application events 
      * fallThrough - {Boolean} Allow events to fall through after these have
      *                         been handled?
+     * options - {Object} Options for the events object.
      */
-    initialize: function (object, element, eventTypes, fallThrough) {
+    initialize: function (object, element, eventTypes, fallThrough, options) {
+        OpenLayers.Util.extend(this, options);
         this.object     = object;
         this.element    = element;
-        this.eventTypes = eventTypes;
         this.fallThrough = fallThrough;
         this.listeners  = {};
 
@@ -418,9 +462,10 @@ OpenLayers.Events = OpenLayers.Class({
 
         // if eventTypes is specified, create a listeners list for each 
         // custom application event.
-        if (this.eventTypes != null) {
-            for (var i = 0; i < this.eventTypes.length; i++) {
-                this.addEventType(this.eventTypes[i]);
+        this.eventTypes = [];
+        if (eventTypes != null) {
+            for (var i=0, len=eventTypes.length; i<len; i++) {
+                this.addEventType(eventTypes[i]);
             }
         }
         
@@ -457,6 +502,7 @@ OpenLayers.Events = OpenLayers.Class({
      */
     addEventType: function(eventName) {
         if (!this.listeners[eventName]) {
+            this.eventTypes.push(eventName);
             this.listeners[eventName] = [];
         }
     },
@@ -468,7 +514,7 @@ OpenLayers.Events = OpenLayers.Class({
      * element - {HTMLDOMElement} a DOM element to attach browser events to
      */
     attachToElement: function (element) {
-        for (var i = 0; i < this.BROWSER_EVENTS.length; i++) {
+        for (var i=0, len=this.BROWSER_EVENTS.length; i<len; i++) {
             var eventType = this.BROWSER_EVENTS[i];
 
             // every browser event has a corresponding application event 
@@ -532,16 +578,14 @@ OpenLayers.Events = OpenLayers.Class({
      */
     register: function (type, obj, func) {
 
-        if (func != null && 
-            ((this.eventTypes && OpenLayers.Util.indexOf(this.eventTypes, type) != -1) ||
-            OpenLayers.Util.indexOf(this.BROWSER_EVENTS, type) != -1)) {
+        if ( (func != null) && 
+             (OpenLayers.Util.indexOf(this.eventTypes, type) != -1) ) {
+
             if (obj == null)  {
                 obj = this.object;
             }
             var listeners = this.listeners[type];
-            if (listeners != null) {
-                listeners.push( {obj: obj, func: func} );
-            }
+            listeners.push( {obj: obj, func: func} );
         }
     },
 
@@ -610,7 +654,7 @@ OpenLayers.Events = OpenLayers.Class({
         }
         var listeners = this.listeners[type];
         if (listeners != null) {
-            for (var i = 0; i < listeners.length; i++) {
+            for (var i=0, len=listeners.length; i<len; i++) {
                 if (listeners[i].obj == obj && listeners[i].func == func) {
                     listeners.splice(i, 1);
                     break;
@@ -664,7 +708,7 @@ OpenLayers.Events = OpenLayers.Class({
                             this.listeners[type].slice() : null;
         if ((listeners != null) && (listeners.length > 0)) {
             var continueChain;
-            for (var i = 0; i < listeners.length; i++) {
+            for (var i=0, len=listeners.length; i<len; i++) {
                 var callback = listeners[i];
                 // bind the context to callback.obj
                 continueChain = callback.func.apply(callback.obj, [evt]);
@@ -692,9 +736,23 @@ OpenLayers.Events = OpenLayers.Class({
      * evt - {Event} 
      */
     handleBrowserEvent: function (evt) {
-        evt.xy = this.getMousePosition(evt); 
+        if (this.includeXY) {
+            evt.xy = this.getMousePosition(evt);
+        } 
         this.triggerEvent(evt.type, evt);
     },
+
+    /**
+     * APIMethod: clearMouseCache
+     * Clear cached data about the mouse position. This should be called any 
+     *     time the element that events are registered on changes position 
+     *     within the page.
+     */
+    clearMouseCache: function() { 
+        this.element.scrolls = null;
+        this.element.lefttop = null;
+        this.element.offsets = null;
+    },      
 
     /**
      * Method: getMousePosition
@@ -707,20 +765,38 @@ OpenLayers.Events = OpenLayers.Class({
      *                      for offsets
      */
     getMousePosition: function (evt) {
-        if (!this.element.offsets) {
-            this.element.offsets = OpenLayers.Util.pagePosition(this.element);
-            this.element.offsets[0] += (document.documentElement.scrollLeft
+        if (!this.includeXY) {
+            this.clearMouseCache();
+        } else if (!this.element.hasScrollEvent) {
+            OpenLayers.Event.observe(window, 'scroll', 
+                OpenLayers.Function.bind(this.clearMouseCache, this)); 
+            this.element.hasScrollEvent = true;
+        }
+        
+        if (!this.element.scrolls) {
+            this.element.scrolls = [];
+            this.element.scrolls[0] = (document.documentElement.scrollLeft
                          || document.body.scrollLeft);
-            this.element.offsets[1] += (document.documentElement.scrollTop
+            this.element.scrolls[1] = (document.documentElement.scrollTop
                          || document.body.scrollTop);
         }
+
+        if (!this.element.lefttop) {
+            this.element.lefttop = [];
+            this.element.lefttop[0] = (document.documentElement.clientLeft || 0);
+            this.element.lefttop[1] = (document.documentElement.clientTop || 0);
+        }
+        
+        if (!this.element.offsets) {
+            this.element.offsets = OpenLayers.Util.pagePosition(this.element);
+            this.element.offsets[0] += this.element.scrolls[0];
+            this.element.offsets[1] += this.element.scrolls[1];
+        }
         return new OpenLayers.Pixel(
-            (evt.clientX + (document.documentElement.scrollLeft
-                         || document.body.scrollLeft)) - this.element.offsets[0]
-                         - (document.documentElement.clientLeft || 0), 
-            (evt.clientY + (document.documentElement.scrollTop
-                         || document.body.scrollTop)) - this.element.offsets[1]
-                         - (document.documentElement.clientTop || 0)
+            (evt.clientX + this.element.scrolls[0]) - this.element.offsets[0]
+                         - this.element.lefttop[0], 
+            (evt.clientY + this.element.scrolls[1]) - this.element.offsets[1]
+                         - this.element.lefttop[1]
         ); 
     },
 

@@ -52,7 +52,8 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
         0.00034332275390625, 
         0.000171661376953125, 
         0.0000858306884765625, 
-        0.00004291534423828125
+        0.00004291534423828125,
+        0.00002145767211914062
     ],
 
     /**
@@ -95,8 +96,8 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
         // create div and set to same size as map
         var veDiv = OpenLayers.Util.createDiv(this.name);
         var sz = this.map.getSize();
-        veDiv.style.width = sz.w;
-        veDiv.style.height = sz.h;
+        veDiv.style.width = sz.w + "px";
+        veDiv.style.height = sz.h + "px";
         this.div.appendChild(veDiv);
 
         try { // crash prevention
@@ -209,7 +210,10 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
      * {Object} MapObject LonLat translated from MapObject Pixel
      */
     getMapObjectLonLatFromMapObjectPixel: function(moPixel) {
-        return this.mapObject.PixelToLatLong(moPixel.x, moPixel.y);
+        //the conditional here is to test if we are running the v6 of VE
+        return (typeof VEPixel != 'undefined') 
+            ? this.mapObject.PixelToLatLong(moPixel)
+            : this.mapObject.PixelToLatLong(moPixel.x, moPixel.y);
     },
 
     /**
@@ -325,7 +329,9 @@ OpenLayers.Layer.VirtualEarth = OpenLayers.Class(
      * {Object} MapObject Pixel from x and y parameters
      */
     getMapObjectPixelFromXY: function(x, y) {
-        return new Msn.VE.Pixel(x, y);
+        //the conditional here is to test if we are running the v6 of VE
+        return (typeof VEPixel != 'undefined') ? new VEPixel(x, y)
+                         : new Msn.VE.Pixel(x, y);
     },
 
     CLASS_NAME: "OpenLayers.Layer.VirtualEarth"

@@ -186,7 +186,8 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
      * Catch changeParams and uppercase the new params to be merged in
      *     before calling changeParams on the super class.
      * 
-     *     Once params have been changed, we will need to re-init our tiles.
+     *     Once params have been changed, the tiles will be reloaded with
+     *     the new parameters.
      * 
      * Parameters:
      * newParams - {Object} Hashtable of new params to use
@@ -199,7 +200,7 @@ OpenLayers.Layer.WMS = OpenLayers.Class(OpenLayers.Layer.Grid, {
     },
 
     /** 
-     * Method: getFullRequestString
+     * APIMethod: getFullRequestString
      * Combine the layer's url with its params and these newParams. 
      *   
      *     Add the SRS parameter from projection -- this is probably

@@ -4,6 +4,7 @@
 
 
 /**
+ * @requires OpenLayers/Tile/WFS.js
  * @requires OpenLayers/Layer/Vector.js
  * @requires OpenLayers/Layer/Markers.js
  */
@@ -58,6 +59,8 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
       * APIProperty: format
       * {<OpenLayers.Format>} The format you want the data to be parsed with.
       * Must be passed in the constructor. Should be a class, not an instance.
+      * This option can only be used if no featureClass is passed / vectorMode
+      * is false: if a featureClass is passed, then this parameter is ignored.
       */
     format: null,
 
@@ -77,7 +80,8 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
 
     /**
      * Property: vectorMode
-     * {Boolean} Should be calculated automatically.
+     * {Boolean} Should be calculated automatically. Determines whether the
+     *     layer is in vector mode or marker mode.
      */
     vectorMode: true, 
     
@@ -138,11 +142,10 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
             this.options.geometry_column = "the_geom";
         }    
         
-        this.params = params;
-        OpenLayers.Util.applyDefaults(
-                       this.params, 
-                       OpenLayers.Util.upperCaseObject(this.DEFAULT_PARAMS)
-                       );
+        this.params = OpenLayers.Util.applyDefaults(
+            params, 
+            OpenLayers.Util.upperCaseObject(this.DEFAULT_PARAMS)
+        );
         this.url = url;
     },    
     
@@ -433,7 +436,7 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
      * altUrl - {String} Use this as the url instead of the layer's url
      */
     getFullRequestString:function(newParams, altUrl) {
-        var projectionCode = this.map.getProjection();
+        var projectionCode = this.projection.getCode() || this.map.getProjection();
         this.params.SRS = (projectionCode == "none") ? null : projectionCode;
 
         return OpenLayers.Layer.Grid.prototype.getFullRequestString.apply(
@@ -456,21 +459,14 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
         }
 
         var data = this.writer.write(this.features);
-        
-        var url = this.url;
 
-        var success = OpenLayers.Function.bind(this.commitSuccess, this);
-
-        var failure = OpenLayers.Function.bind(this.commitFailure, this);
-        
-        // from prototype.js
-        new OpenLayers.Ajax.Request(url, 
-                         {   method: 'post', 
-                             postBody: data,
-                             onComplete: success, 
-                             onFailure: failure
-                          }
-                         );
+        OpenLayers.Request.POST({
+            url: this.url,
+            data: data,
+            success: this.commitSuccess,
+            failure: this.commitFailure,
+            scope: this
+        });
     },
 
     /**
@@ -515,7 +511,7 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
      * response - {String} full XML response
      */
     commitReport: function(string, response) {
-        alert(string);
+        OpenLayers.Console.userError(string);
     },
 
     

@@ -55,7 +55,7 @@ OpenLayers.Style = OpenLayers.Class({
     /**
      * Property: context
      * {Object} An optional object with properties that symbolizers' property
-     * values should be evaluatad against. If no context is specified,
+     * values should be evaluated against. If no context is specified,
      * feature.attributes will be used
      */
     context: null,
@@ -107,7 +107,7 @@ OpenLayers.Style = OpenLayers.Class({
      * nullify references to prevent circular references and memory leaks
      */
     destroy: function() {
-        for (var i=0; i<this.rules.length; i++) {
+        for (var i=0, len=this.rules.length; i<len; i++) {
             this.rules[i].destroy();
             this.rules[i] = null;
         }
@@ -135,7 +135,7 @@ OpenLayers.Style = OpenLayers.Class({
         var rule, context;
         var elseRules = [];
         var appliedRules = false;
-        for(var i=0; i<rules.length; i++) {
+        for(var i=0, len=rules.length; i<len; i++) {
             rule = rules[i];
             // does the rule apply?
             var applies = rule.evaluate(feature);
@@ -153,7 +153,7 @@ OpenLayers.Style = OpenLayers.Class({
         // if no other rules apply, apply the rules with else filters
         if(appliedRules == false && elseRules.length > 0) {
             appliedRules = true;
-            for(var i=0; i<elseRules.length; i++) {
+            for(var i=0, len=elseRules.length; i<len; i++) {
                 this.applySymbolizer(elseRules[i], style, feature);
             }
         }
@@ -233,7 +233,7 @@ OpenLayers.Style = OpenLayers.Class({
         // walk through all rules to check for properties in their symbolizer
         var rules = this.rules;
         var symbolizer, value;
-        for (var i=0; i<rules.length; i++) {
+        for (var i=0, len=rules.length; i<len; i++) {
             var symbolizer = rules[i].symbolizer;
             for (var key in symbolizer) {
                 value = symbolizer[key];
@@ -310,7 +310,7 @@ OpenLayers.Style = OpenLayers.Class({
      */
     getSymbolizerPrefix: function(geometry) {
         var prefixes = OpenLayers.Style.SYMBOLIZER_PREFIXES;
-        for (var i=0; i<prefixes.length; i++) {
+        for (var i=0, len=prefixes.length; i<len; i++) {
             if (geometry.CLASS_NAME.indexOf(prefixes[i]) != -1) {
                 return prefixes[i];
             }
@@ -353,4 +353,4 @@ OpenLayers.Style.createLiteral = function(value, context, feature) {
  * {Array} prefixes of the sld symbolizers. These are the
  * same as the main geometry types
  */
-OpenLayers.Style.SYMBOLIZER_PREFIXES = ['Point', 'Line', 'Polygon'];
+OpenLayers.Style.SYMBOLIZER_PREFIXES = ['Point', 'Line', 'Polygon', 'Text'];

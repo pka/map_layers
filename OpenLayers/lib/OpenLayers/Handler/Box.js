@@ -29,6 +29,13 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
      *     olHandlerBoxZoomBox
      */
     boxDivClassName: 'olHandlerBoxZoomBox',
+    
+    /**
+     * Property: boxCharacteristics
+     * {Object} Caches some box characteristics from css. This is used
+     *     by the getBoxCharacteristics method.
+     */
+    boxCharacteristics: null,
 
     /**
      * Constructor: OpenLayers.Handler.Box
@@ -84,15 +91,27 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
     * Method: moveBox
     */
     moveBox: function (xy) {
-        var deltaX = Math.abs(this.dragHandler.start.x - xy.x);
-        var deltaY = Math.abs(this.dragHandler.start.y - xy.y);
+        var startX = this.dragHandler.start.x;
+        var startY = this.dragHandler.start.y;
+        var deltaX = Math.abs(startX - xy.x);
+        var deltaY = Math.abs(startY - xy.y);
         this.zoomBox.style.width = Math.max(1, deltaX) + "px";
         this.zoomBox.style.height = Math.max(1, deltaY) + "px";
-        if (xy.x < this.dragHandler.start.x) {
-            this.zoomBox.style.left = xy.x+"px";
-        }
-        if (xy.y < this.dragHandler.start.y) {
-            this.zoomBox.style.top = xy.y+"px";
+        this.zoomBox.style.left = xy.x < startX ? xy.x+"px" : startX+"px";
+        this.zoomBox.style.top = xy.y < startY ? xy.y+"px" : startY+"px";
+
+        // depending on the box model, modify width and height to take borders
+        // of the box into account
+        var box = this.getBoxCharacteristics(deltaX, deltaY);
+        if (box.newBoxModel) {
+            if (xy.x > startX) {
+                this.zoomBox.style.width =
+                    Math.max(1, deltaX - box.xOffset) + "px";
+            }
+            if (xy.y > startY) {
+                this.zoomBox.style.height =
+                    Math.max(1, deltaY - box.yOffset) + "px";
+            }
         }
     },
 
@@ -127,6 +146,7 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
     removeBox: function() {
         this.map.viewPortDiv.removeChild(this.zoomBox);
         this.zoomBox = null;
+        this.boxCharacteristics = null;
     },
 
     /**
@@ -151,6 +171,26 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
         } else {
             return false;
         }
+    },
+    
+    getBoxCharacteristics: function(dx, dy) {
+        if (!this.boxCharacteristics) {
+            var xOffset = parseInt(OpenLayers.Element.getStyle(this.zoomBox,
+                "border-left-width")) + parseInt(OpenLayers.Element.getStyle(
+                this.zoomBox, "border-right-width")) + 1;
+            var yOffset = parseInt(OpenLayers.Element.getStyle(this.zoomBox,
+                "border-top-width")) + parseInt(OpenLayers.Element.getStyle(
+                this.zoomBox, "border-bottom-width")) + 1;
+            // all browsers use the new box model, except IE in quirks mode
+            var newBoxModel = OpenLayers.Util.getBrowserName() == "msie" ?
+                document.compatMode != "BackCompat" : true;
+            this.boxCharacteristics = {
+                xOffset: xOffset,
+                yOffset: yOffset,
+                newBoxModel: newBoxModel
+            };
+        }
+        return this.boxCharacteristics;
     },
 
     CLASS_NAME: "OpenLayers.Handler.Box"

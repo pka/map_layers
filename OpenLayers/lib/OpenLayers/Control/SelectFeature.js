@@ -60,6 +60,12 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
     hover: false,
     
     /**
+     * APIProperty: box
+     * {Boolean} Allow feature selection by drawing a box.
+     */
+    box: false,
+    
+    /**
      * APIProperty: onSelect 
      * {Function} Optional function to be called when a feature is selected.
      * The function should expect to be called with a feature.
@@ -88,7 +94,7 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
     
     /**
      * APIProperty: callbacks
-     * {Object} The functions that are sent to the handler for callback
+     * {Object} The functions that are sent to the handlers.feature for callback
      */
     callbacks: null,
     
@@ -106,10 +112,11 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
     renderIntent: "select",
 
     /**
-     * Property: handler
-     * {<OpenLayers.Handler.Feature>}
+     * Property: handlers
+     * {Object} Object with references to multiple <OpenLayers.Handler>
+     *     instances.
      */
-    handler: null,
+    handlers: null,
 
     /**
      * Constructor: <OpenLayers.Control.SelectFeature>
@@ -121,16 +128,66 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
     initialize: function(layer, options) {
         OpenLayers.Control.prototype.initialize.apply(this, [options]);
         this.layer = layer;
-        this.callbacks = OpenLayers.Util.extend({
-                                                  click: this.clickFeature,
-                                                  clickout: this.clickoutFeature,
-                                                  over: this.overFeature,
-                                                  out: this.outFeature
-                                                }, this.callbacks);
-        var handlerOptions = { geometryTypes: this.geometryTypes};
-        this.handler = new OpenLayers.Handler.Feature(this, layer,
-                                                      this.callbacks,
-                                                      handlerOptions);
+        var callbacks = {
+            click: this.clickFeature,
+            clickout: this.clickoutFeature
+        };
+        if (this.hover) {
+            callbacks.over = this.overFeature;
+            callbacks.out = this.outFeature;
+        }
+             
+        this.callbacks = OpenLayers.Util.extend(callbacks, this.callbacks);
+        this.handlers = {
+            feature: new OpenLayers.Handler.Feature(
+                this, layer, this.callbacks, {geometryTypes: this.geometryTypes}
+            )
+        };
+
+        if (this.box) {
+            this.handlers.box = new OpenLayers.Handler.Box(
+                this, {done: this.selectBox},
+                {boxDivClassName: "olHandlerBoxSelectFeature"}
+            ); 
+        }
+    },
+
+    /**
+     * Method: activate
+     * Activates the control.
+     * 
+     * Returns:
+     * {Boolean} The control was effectively activated.
+     */
+    activate: function () {
+        if (!this.active) {
+            this.handlers.feature.activate();
+            if(this.box && this.handlers.box) {
+                this.handlers.box.activate();
+            }
+        }
+        return OpenLayers.Control.prototype.activate.apply(
+            this, arguments
+        );
+    },
+
+    /**
+     * Method: deactivate
+     * Deactivates the control.
+     * 
+     * Returns:
+     * {Boolean} The control was effectively deactivated.
+     */
+    deactivate: function () {
+        if (this.active) {
+            this.handlers.feature.deactivate();
+            if(this.handlers.box) {
+                this.handlers.box.deactivate();
+            }
+        }
+        return OpenLayers.Control.prototype.deactivate.apply(
+            this, arguments
+        );
     },
 
     /**
@@ -188,7 +245,7 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
      * {Boolean} Allow for multiple selected features.
      */
     multipleSelect: function() {
-        return this.multiple || this.handler.evt[this.multipleKey];
+        return this.multiple || this.handlers.feature.evt[this.multipleKey];
     },
     
     /**
@@ -200,7 +257,7 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
      * {Boolean} Toggle the selected state of a feature.
      */
     toggleSelect: function() {
-        return this.toggle || this.handler.evt[this.toggleKey];
+        return this.toggle || this.handlers.feature.evt[this.toggleKey];
     },
 
     /**
@@ -255,13 +312,18 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
      * feature - {<OpenLayers.Feature.Vector>} 
      */
     select: function(feature) {
-        this.layer.selectedFeatures.push(feature);
-
-        var selectStyle = this.selectStyle || this.renderIntent;
-        
-        this.layer.drawFeature(feature, selectStyle);
-        this.layer.events.triggerEvent("featureselected", {feature: feature});
-        this.onSelect(feature);
+        var cont = this.layer.events.triggerEvent("beforefeatureselected", {
+            feature: feature
+        });
+        if(cont !== false) {
+            this.layer.selectedFeatures.push(feature);
+    
+            var selectStyle = this.selectStyle || this.renderIntent;
+            
+            this.layer.drawFeature(feature, selectStyle);
+            this.layer.events.triggerEvent("featureselected", {feature: feature});
+            this.onSelect(feature);
+        }
     },
 
     /**
@@ -270,7 +332,7 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
      * normal, and call the onUnselect function.
      *
      * Parameters:
-     * feature - {<OpenLayers.Feature.Vector>} 
+     * feature - {<OpenLayers.Feature.Vector>}
      */
     unselect: function(feature) {
         // Store feature style for restoration later
@@ -278,6 +340,49 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
         OpenLayers.Util.removeItem(this.layer.selectedFeatures, feature);
         this.layer.events.triggerEvent("featureunselected", {feature: feature});
         this.onUnselect(feature);
+    },
+    
+    /**
+     * Method: selectBox
+     * Callback from the handlers.box set up when <box> selection is true
+     *     on.
+     *
+     * Parameters:
+     * position - {<OpenLayers.Bounds> || <OpenLayers.Pixel> }  
+     */
+    selectBox: function(position) {
+        if (position instanceof OpenLayers.Bounds) {
+            var minXY = this.map.getLonLatFromPixel(
+                new OpenLayers.Pixel(position.left, position.bottom)
+            );
+            var maxXY = this.map.getLonLatFromPixel(
+                new OpenLayers.Pixel(position.right, position.top)
+            );
+            var bounds = new OpenLayers.Bounds(
+                minXY.lon, minXY.lat, maxXY.lon, maxXY.lat
+            );
+            
+            // if multiple is false, first deselect currently selected features
+            if (!this.multipleSelect()) {
+                this.unselectAll();
+            }
+            
+            // because we're using a box, we consider we want multiple selection
+            var prevMultiple = this.multiple;
+            this.multiple = true;
+            for(var i=0, len = this.layer.features.length; i<len; ++i) {
+                var feature = this.layer.features[i];
+                if (this.geometryTypes == null || OpenLayers.Util.indexOf(
+                        this.geometryTypes, feature.geometry.CLASS_NAME) > -1) {
+                    if (bounds.toGeometry().intersects(feature.geometry)) {
+                        if (OpenLayers.Util.indexOf(this.layer.selectedFeatures, feature) == -1) {
+                            this.select(feature);
+                        }
+                    }
+                }
+            }
+            this.multiple = prevMultiple;
+        }
     },
 
     /** 
@@ -288,7 +393,10 @@ OpenLayers.Control.SelectFeature = OpenLayers.Class(OpenLayers.Control, {
      * map - {<OpenLayers.Map>} 
      */
     setMap: function(map) {
-        this.handler.setMap(map);
+        this.handlers.feature.setMap(map);
+        if (this.box) {
+            this.handlers.box.setMap(map);
+        }
         OpenLayers.Control.prototype.setMap.apply(this, arguments);
     },
 

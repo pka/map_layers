@@ -37,13 +37,44 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
      * the image will be hidden behind the frame. 
      */ 
     frame: null, 
-
     
     /**
      * Property: layerAlphaHack
      * {Boolean} True if the png alpha hack needs to be applied on the layer's div.
      */
     layerAlphaHack: null,
+    
+    /**
+     * Property: isBackBuffer
+     * {Boolean} Is this tile a back buffer tile?
+     */
+    isBackBuffer: false,
+    
+    /**
+     * Property: lastRatio
+     * {Float} Used in transition code only.  This is the previous ratio
+     *     of the back buffer tile resolution to the map resolution.  Compared
+     *     with the current ratio to determine if zooming occurred.
+     */
+    lastRatio: 1,
+
+    /**
+     * Property: isFirstDraw
+     * {Boolean} Is this the first time the tile is being drawn?
+     *     This is used to force resetBackBuffer to synchronize
+     *     the backBufferTile with the foreground tile the first time
+     *     the foreground tile loads so that if the user zooms
+     *     before the layer has fully loaded, the backBufferTile for
+     *     tiles that have been loaded can be used.
+     */
+    isFirstDraw: true,
+        
+    /**
+     * Property: backBufferTile
+     * {<OpenLayers.Tile>} A clone of the tile used to create transition
+     *     effects when the tile is moved or changes resolution.
+     */
+    backBufferTile: null,
 
     /** TBD 3.0 - reorder the parameters to the init function to remove 
      *             URL. the getUrl() function on the layer gets called on 
@@ -86,12 +117,22 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
                 this.frame.removeChild(this.imgDiv);
                 this.imgDiv.map = null;
             }
+            this.imgDiv.urls = null;
         }
         this.imgDiv = null;
         if ((this.frame != null) && (this.frame.parentNode == this.layer.div)) { 
             this.layer.div.removeChild(this.frame); 
         }
         this.frame = null; 
+        
+        /* clean up the backBufferTile if it exists */
+        if (this.backBufferTile) {
+            this.backBufferTile.destroy();
+            this.backBufferTile = null;
+        }
+        
+        this.layer.events.unregister("loadend", this, this.resetBackBuffer);
+        
         OpenLayers.Tile.prototype.destroy.apply(this, arguments);
     },
 
@@ -134,8 +175,47 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         if (this.layer != this.layer.map.baseLayer && this.layer.reproject) {
             this.bounds = this.getBoundsFromBaseLayer(this.position);
         }
-        if (!OpenLayers.Tile.prototype.draw.apply(this, arguments)) {
-            return false;    
+        var drawTile = OpenLayers.Tile.prototype.draw.apply(this, arguments);
+        
+        if (OpenLayers.Util.indexOf(this.layer.SUPPORTED_TRANSITIONS, this.layer.transitionEffect) != -1) {
+            if (drawTile) {
+                //we use a clone of this tile to create a double buffer for visual
+                //continuity.  The backBufferTile is used to create transition
+                //effects while the tile in the grid is repositioned and redrawn
+                if (!this.backBufferTile) {
+                    this.backBufferTile = this.clone();
+                    this.backBufferTile.hide();
+                    // this is important.  It allows the backBuffer to place itself
+                    // appropriately in the DOM.  The Image subclass needs to put
+                    // the backBufferTile behind the main tile so the tiles can
+                    // load over top and display as soon as they are loaded.
+                    this.backBufferTile.isBackBuffer = true;
+                    
+                    // potentially end any transition effects when the tile loads
+                    this.events.register('loadend', this, this.resetBackBuffer);
+                    
+                    // clear transition back buffer tile only after all tiles in
+                    // this layer have loaded to avoid visual glitches
+                    this.layer.events.register("loadend", this, this.resetBackBuffer);
+                }
+                // run any transition effects
+                this.startTransition();
+            } else {
+                // if we aren't going to draw the tile, then the backBuffer should
+                // be hidden too!
+                if (this.backBufferTile) {
+                    this.backBufferTile.clear();
+                }
+            }
+        } else {
+            if (drawTile && this.isFirstDraw) {
+                this.events.register('loadend', this, this.showTile);
+                this.isFirstDraw = false;
+            }   
+        }    
+        
+        if (!drawTile) {
+            return false;
         }
         
         if (this.isLoading) {
@@ -149,6 +229,42 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         return this.renderTile();
     },
     
+    /** 
+     * Method: resetBackBuffer
+     * Triggered by two different events, layer loadend, and tile loadend.
+     *     In any of these cases, we check to see if we can hide the 
+     *     backBufferTile yet and update its parameters to match the 
+     *     foreground tile.
+     *
+     * Basic logic:
+     *  - If the backBufferTile hasn't been drawn yet, reset it
+     *  - If layer is still loading, show foreground tile but don't hide
+     *    the backBufferTile yet
+     *  - If layer is done loading, reset backBuffer tile and show 
+     *    foreground tile
+     */
+    resetBackBuffer: function() {
+        this.showTile();
+        if (this.backBufferTile && 
+            (this.isFirstDraw || !this.layer.numLoadingTiles)) {
+            this.isFirstDraw = false;
+            // check to see if the backBufferTile is within the max extents
+            // before rendering it 
+            var maxExtent = this.layer.maxExtent;
+            var withinMaxExtent = (maxExtent &&
+                                   this.bounds.intersectsBounds(maxExtent, false));
+            if (withinMaxExtent) {
+                this.backBufferTile.position = this.position;
+                this.backBufferTile.bounds = this.bounds;
+                this.backBufferTile.size = this.size;
+                this.backBufferTile.imageSize = this.layer.imageSize || this.size;
+                this.backBufferTile.imageOffset = this.layer.imageOffset;
+                this.backBufferTile.resolution = this.layer.getResolution();
+                this.backBufferTile.renderTile();
+            }
+        }
+    },
+    
     /**
      * Method: renderTile
      * Internal function to actually initialize the image tile,
@@ -160,6 +276,11 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
         }
 
         this.imgDiv.viewRequestID = this.layer.map.viewRequestID;
+        
+        // needed for changing to a different serve for onload error
+        if (this.layer.url instanceof Array) {
+            this.imgDiv.urls = this.layer.url.slice();
+        }
         
         this.url = this.layer.getURL(this.bounds);
         // position the frame 

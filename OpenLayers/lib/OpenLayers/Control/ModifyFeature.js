@@ -93,7 +93,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      * {Array(Integer)} Keycodes for deleting verticies.  Set to null to disable
      *     vertex deltion by keypress.  If non-null, keypresses with codes
      *     in this array will delete vertices under the mouse. Default
-     *     is 46 and 100, the 'delete' and lowercase 'd' keys.
+     *     is 46 and 68, the 'delete' and lowercase 'd' keys.
      */
     deleteCodes: null,
 
@@ -183,7 +183,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             this.layer.style || this.layer.styleMap.createSymbolizer());
         this.virtualStyle.fillOpacity = 0.3;
         this.virtualStyle.strokeOpacity = 0.3;
-        this.deleteCodes = [46, 100];
+        this.deleteCodes = [46, 68];
         this.mode = OpenLayers.Control.ModifyFeature.RESHAPE;
         OpenLayers.Control.prototype.initialize.apply(this, [options]);
         if(!(this.deleteCodes instanceof Array)) {
@@ -201,6 +201,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             layer, selectOptions
         );
         this.layer.events.on({
+            "beforefeatureselected": this.beforeSelectFeature,
             "featureselected": this.selectFeature,
             "featureunselected": this.unselectFeature,
             scope: this
@@ -226,7 +227,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
 
         // configure the keyboard handler
         var keyboardOptions = {
-            keypress: this.handleKeypress
+            keydown: this.handleKeypress
         };
         this.handlers = {
             keyboard: new OpenLayers.Handler.Keyboard(this, keyboardOptions)
@@ -239,6 +240,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      */
     destroy: function() {
         this.layer.events.un({
+            "beforefeatureselected": this.beforeSelectFeature,
             "featureselected": this.selectFeature,
             "featureunselected": this.unselectFeature,
             scope: this
@@ -251,10 +253,10 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
 
     /**
      * APIMethod: activate
-     * Activate the control and the feature handler.
+     * Activate the control.
      * 
      * Returns:
-     * {Boolean} Successfully activated the control and feature handler.
+     * {Boolean} Successfully activated the control.
      */
     activate: function() {
         return (this.selectControl.activate() &&
@@ -264,7 +266,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
 
     /**
      * APIMethod: deactivate
-     * Deactivate the controls.
+     * Deactivate the control.
      *
      * Returns: 
      * {Boolean} Successfully deactivated the control.
@@ -273,8 +275,8 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
         var deactivated = false;
         // the return from the controls is unimportant in this case
         if(OpenLayers.Control.prototype.deactivate.apply(this, arguments)) {
-            this.layer.removeFeatures(this.vertices);
-            this.layer.removeFeatures(this.virtualVertices);
+            this.layer.removeFeatures(this.vertices, {silent: true});
+            this.layer.removeFeatures(this.virtualVertices, {silent: true});
             this.vertices = [];
             this.dragControl.deactivate();
             if(this.feature && this.feature.geometry) {
@@ -286,6 +288,20 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             deactivated = true;
         }
         return deactivated;
+    },
+    
+    /**
+     * Method: beforeSelectFeature
+     * Called before a feature is selected.
+     *
+     * Parameters:
+     * object - {Object} Object with a feature property referencing the
+     *     selected feature.
+     */
+    beforeSelectFeature: function(object) {
+        return this.layer.events.triggerEvent(
+            "beforefeaturemodified", {feature: object.feature}
+        );
     },
 
     /**
@@ -301,8 +317,6 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
         this.resetVertices();
         this.dragControl.activate();
         this.onModificationStart(this.feature);
-        this.layer.events.triggerEvent("beforefeaturemodified", 
-                                       {feature: this.feature});
     },
 
     /**
@@ -314,16 +328,16 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      *     unselected feature.
      */
     unselectFeature: function(object) {
-        this.layer.removeFeatures(this.vertices);
+        this.layer.removeFeatures(this.vertices, {silent: true});
         this.vertices = [];
-        this.layer.destroyFeatures(this.virtualVertices);
+        this.layer.destroyFeatures(this.virtualVertices, {silent: true});
         this.virtualVertices = [];
         if(this.dragHandle) {
-            this.layer.destroyFeatures([this.dragHandle]);
+            this.layer.destroyFeatures([this.dragHandle], {silent: true});
             delete this.dragHandle;
         }
         if(this.radiusHandle) {
-            this.layer.destroyFeatures([this.radiusHandle]);
+            this.layer.destroyFeatures([this.radiusHandle], {silent: true});
             delete this.radiusHandle;
         }
         this.feature = null;
@@ -413,17 +427,17 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                 this.vertices.push(vertex);
             } else if(vertex == this.dragHandle) {
                 // dragging a drag handle
-                this.layer.removeFeatures(this.vertices);
+                this.layer.removeFeatures(this.vertices, {silent: true});
                 this.vertices = [];
                 if(this.radiusHandle) {
-                    this.layer.destroyFeatures([this.radiusHandle]);
+                    this.layer.destroyFeatures([this.radiusHandle], {silent: true});
                     this.radiusHandle = null;
                 }
             }
             // dragging a radius handle - no special treatment
             // dragging a real vertex - no special treatment
             if(this.virtualVertices.length > 0) {
-                this.layer.destroyFeatures(this.virtualVertices);
+                this.layer.destroyFeatures(this.virtualVertices, {silent: true});
                 this.virtualVertices = [];
             }
             this.layer.drawFeature(this.feature, this.selectControl.renderIntent);
@@ -463,19 +477,19 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             this.dragControl.outFeature(this.dragControl.feature);
         }
         if(this.vertices.length > 0) {
-            this.layer.removeFeatures(this.vertices);
+            this.layer.removeFeatures(this.vertices, {silent: true});
             this.vertices = [];
         }
         if(this.virtualVertices.length > 0) {
-            this.layer.removeFeatures(this.virtualVertices);
+            this.layer.removeFeatures(this.virtualVertices, {silent: true});
             this.virtualVertices = [];
         }
         if(this.dragHandle) {
-            this.layer.destroyFeatures([this.dragHandle]);
+            this.layer.destroyFeatures([this.dragHandle], {silent: true});
             this.dragHandle = null;
         }
         if(this.radiusHandle) {
-            this.layer.destroyFeatures([this.radiusHandle]);
+            this.layer.destroyFeatures([this.radiusHandle], {silent: true});
             this.radiusHandle = null;
         }
         if(this.feature &&
@@ -496,14 +510,16 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
     /**
      * Method: handleKeypress
      * Called by the feature handler on keypress.  This is used to delete
-     *     vertices and point features.  If the <deleteCode> property is set,
-     *     vertices and points will be deleted when a feature is selected
-     *     for modification and the mouse is over a vertex.
+     *     vertices. If the <deleteCode> property is set, vertices will
+     *     be deleted when a feature is selected for modification and
+     *     the mouse is over a vertex.
      *
      * Parameters:
      * {Integer} Key code corresponding to the keypress event.
      */
-    handleKeypress: function(code) {
+    handleKeypress: function(evt) {
+        var code = evt.keyCode;
+        
         // check for delete key
         if(this.feature &&
            OpenLayers.Util.indexOf(this.deleteCodes, code) != -1) {
@@ -534,7 +550,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
         this.virtualVertices = [];        
         var control = this;
         function collectComponentVertices(geometry) {
-            var i, vertex, component;
+            var i, vertex, component, len;
             if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
                 vertex = new OpenLayers.Feature.Vector(geometry);
                 control.vertices.push(vertex);
@@ -555,7 +571,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                 
                 // add virtual vertices in the middle of each edge
                 if(geometry.CLASS_NAME != "OpenLayers.Geometry.MultiPoint") {
-                    for(i=0; i<geometry.components.length-1; ++i) {
+                    for(i=0, len=geometry.components.length; i<len-1; ++i) {
                         var prevVertex = geometry.components[i];
                         var nextVertex = geometry.components[i + 1];
                         if(prevVertex.CLASS_NAME == "OpenLayers.Geometry.Point" &&
@@ -576,8 +592,8 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             }
         }
         collectComponentVertices.call(this, this.feature.geometry);
-        this.layer.addFeatures(this.vertices, {silent: true});
         this.layer.addFeatures(this.virtualVertices, {silent: true});
+        this.layer.addFeatures(this.vertices, {silent: true});
     },
 
     /**

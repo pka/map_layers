@@ -38,6 +38,23 @@ OpenLayers.Layer = OpenLayers.Class({
     opacity: null,
 
     /**
+     * APIProperty: alwaysInRange
+     * {Boolean} If a layer's display should not be scale-based, this should 
+     *     be set to true. This will cause the layer, as an overlay, to always 
+     *     be 'active', by always returning true from the calculateInRange() 
+     *     function. 
+     * 
+     *     If not explicitly specified for a layer, its value will be 
+     *     determined on startup in initResolutions() based on whether or not 
+     *     any scale-specific properties have been set as options on the 
+     *     layer. If no scale-specific options have been set on the layer, we 
+     *     assume that it should always be in range.
+     * 
+     *     See #987 for more info.
+     */
+    alwaysInRange: null,   
+
+    /**
      * Constant: EVENT_TYPES
      * {Array(String)} Supported application event types.  Register a listener
      *     for a particular event with the following syntax:
@@ -57,8 +74,12 @@ OpenLayers.Layer = OpenLayers.Class({
      *  - *loadend* Triggered when layer loading ends.
      *  - *loadcancel* Triggered when layer loading is canceled.
      *  - *visibilitychanged* Triggered when layer visibility is changed.
+     *  - *moveend* Triggered when layer is moved, object passed as
+     *      argument has a zoomChanged boolean property which tells that the
+     *      zoom has changed.
      */
-    EVENT_TYPES: ["loadstart", "loadend", "loadcancel", "visibilitychanged"],
+    EVENT_TYPES: ["loadstart", "loadend", "loadcancel", "visibilitychanged",
+                  "moveend"],
         
     /**
      * APIProperty: events
@@ -615,14 +636,20 @@ OpenLayers.Layer = OpenLayers.Class({
      * 
      * Returns:
      * {Boolean} The layer is displayable at the current map's current
-     *     resolution.
+     *     resolution. Note that if 'alwaysInRange' is true for the layer, 
+     *     this function will always return true.
      */
     calculateInRange: function() {
         var inRange = false;
-        if (this.map) {
-            var resolution = this.map.getResolution();
-            inRange = ( (resolution >= this.minResolution) &&
-                        (resolution <= this.maxResolution) );
+
+        if (this.alwaysInRange) {
+            inRange = true;
+        } else {
+            if (this.map) {
+                var resolution = this.map.getResolution();
+                inRange = ( (resolution >= this.minResolution) &&
+                            (resolution <= this.maxResolution) );
+            }
         }
         return inRange;
     },
@@ -677,27 +704,60 @@ OpenLayers.Layer = OpenLayers.Class({
           'numZoomLevels', 'maxZoomLevel'
         );
 
+        //these are the properties which do *not* imply that user wishes 
+        // this layer to be scale-dependant
+        var notScaleProps = ['projection', 'units'];    
+
+        //should the layer be scale-dependant? default is false -- this will 
+        // only be set true if we find that the user has specified a property
+        // from the 'props' array that is not in 'notScaleProps'
+        var useInRange = false;
+
         // First we create a new object where we will store all of the 
         //  resolution-related properties that we find in either the layer's
         //  'options' array or from the map.
         //
         var confProps = {};        
-        for(var i=0; i < props.length; i++) {
+        for(var i=0, len=props.length; i<len; i++) {
             var property = props[i];
+            
+            // If the layer had one of these properties set *and* it is 
+            // a scale property (is not a non-scale property), then we assume
+            // the user did intend to use scale-dependant display (useInRange).
+            if (this.options[property] && 
+                OpenLayers.Util.indexOf(notScaleProps, property) == -1) {
+                useInRange = true;
+            }
+                   
             confProps[property] = this.options[property] || this.map[property];
         }
 
-        // Do not use the scales/resolutions at the map level if
-        // minScale/minResolution and maxScale/maxResolution are
-        // specified at the layer level
-        if (this.options.minScale != null &&
-            this.options.maxScale != null &&
+        //only automatically set 'alwaysInRange' if the user hasn't already 
+        // set it (to true or false, since the default is null). If user did
+        // not intend to use scale-dependant display then we set they layer
+        // as alwaysInRange. This means calculateInRange() will always return 
+        // true and the layer will never be turned off due to scale changes.
+        //
+        if (this.alwaysInRange == null) {
+            this.alwaysInRange = !useInRange;
+        }
+
+        // Do not use the scales array set at the map level if 
+        // either minScale or maxScale or both are set at the
+        // layer level
+        if ((this.options.minScale != null ||
+             this.options.maxScale != null) &&
             this.options.scales == null) {
+
             confProps.scales = null;
         }
-        if (this.options.minResolution != null &&
-            this.options.maxResolution != null &&
+        // Do not use the resolutions array set at the map level if 
+        // either minResolution or maxResolution or both are set at the
+        // layer level
+        if ((this.options.minResolution != null ||
+             this.options.maxResolution != null) &&
             this.options.resolutions == null) {
+
             confProps.resolutions = null;
         }
 
@@ -715,7 +775,7 @@ OpenLayers.Layer = OpenLayers.Class({
           //preset levels
             if (confProps.scales != null) {
                 confProps.resolutions = [];
-                for(var i = 0; i < confProps.scales.length; i++) {
+                for(var i=0, len=confProps.scales.length; i<len; i++) {
                     var scale = confProps.scales[i];
                     confProps.resolutions[i] = 
                        OpenLayers.Util.getResolutionFromScale(scale, 
@@ -801,7 +861,7 @@ OpenLayers.Layer = OpenLayers.Class({
         this.minResolution = confProps.resolutions[lastIndex];
         
         this.scales = [];
-        for(var i = 0; i < confProps.resolutions.length; i++) {
+        for(var i=0, len=confProps.resolutions.length; i<len; i++) {
             this.scales[i] = 
                OpenLayers.Util.getScaleFromResolution(confProps.resolutions[i], 
                                                       confProps.units);
@@ -924,7 +984,7 @@ OpenLayers.Layer = OpenLayers.Class({
             var highRes = this.resolutions[lowZoom];
             var lowRes = this.resolutions[highZoom];
             var res;
-            for(var i=0; i<this.resolutions.length; ++i) {
+            for(var i=0, len=this.resolutions.length; i<len; ++i) {
                 res = this.resolutions[i];
                 if(res >= resolution) {
                     highRes = res;
@@ -945,7 +1005,7 @@ OpenLayers.Layer = OpenLayers.Class({
         } else {
             var diff;
             var minDiff = Number.POSITIVE_INFINITY;
-            for(var i=0; i < this.resolutions.length; i++) {            
+            for(var i=0, len=this.resolutions.length; i<len; i++) {            
                 if (closest) {
                     diff = Math.abs(this.resolutions[i] - resolution);
                     if (diff > minDiff) {
@@ -1030,12 +1090,22 @@ OpenLayers.Layer = OpenLayers.Class({
     setOpacity: function(opacity) {
         if (opacity != this.opacity) {
             this.opacity = opacity;
-            for(var i=0; i<this.div.childNodes.length; ++i) {
+            for(var i=0, len=this.div.childNodes.length; i<len; ++i) {
                 var element = this.div.childNodes[i].firstChild;
                 OpenLayers.Util.modifyDOMElement(element, null, null, null, 
                                                  null, null, null, opacity);
             }
         }
+    },
+
+    /**
+     * Method: getZIndex
+     * 
+     * Returns: 
+     * {Integer} the z-index of this layer
+     */    
+    getZIndex: function () {
+        return this.div.style.zIndex;
     },
 
     /**

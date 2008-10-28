@@ -9,6 +9,9 @@
 /**
  * Class: OpenLayers.Format.WFS
  * Read/Write WFS. 
+ *
+ * Inherits from:
+ *  - <OpenLayers.Format.GML>
  */
 OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
     
@@ -129,7 +132,7 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      * feature - {<OpenLayers.Feature.Vector>} 
      */
     update: function(feature) {
-        if (!feature.fid) { alert(OpenLayers.i18n("noFID")); }
+        if (!feature.fid) { OpenLayers.Console.userError(OpenLayers.i18n("noFID")); }
         var updateNode = this.createElementNS(this.wfsns, 'wfs:Update');
         updateNode.setAttribute("typeName", this.layerName);
 
@@ -186,7 +189,7 @@ OpenLayers.Format.WFS = OpenLayers.Class(OpenLayers.Format.GML, {
      */
     remove: function(feature) {
         if (!feature.fid) { 
-            alert(OpenLayers.i18n("noFID")); 
+            OpenLayers.Console.userError(OpenLayers.i18n("noFID")); 
             return false; 
         }
         var deleteNode = this.createElementNS(this.wfsns, 'wfs:Delete');
