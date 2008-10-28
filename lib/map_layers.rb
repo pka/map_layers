@@ -129,7 +129,7 @@ EOS
         #Columns for select
         pkey, text, geom = [model.primary_key, map_layers_config.text, map_layers_config.geometry].collect { |c| model.connection.quote_column_name(c) }
         db_srid = model.columns_hash[map_layers_config.geometry.to_s].srid
-        if db_srid != -1 && db_srid != @srid
+        if db_srid != @srid && !db_srid.nil? && db_srid != -1
           #Transform geometry from db_srid to requested srid (not possible for undefined db_srid)
           geom = "Transform(#{geom},#{@srid}) AS #{geom}"
         end
