@@ -21,6 +21,10 @@ module MapLayers
       "http://t4.hypercube.telascience.org/tiles?"
     ], 
     {:layers => 'osm-4326', :format => 'image/png' } )
+  GEOPOLE_OSM = Layer::TMS.new("Geopole Street Map", 
+    "http://tms.geopole.org/", 
+    {:layername => 'geopole_street', :type => 'png', :maxResolution => 0.703125,
+     :attribution => 'Map data <a href="http://creativecommons.org/licenses/by-sa/2.0/">CCBYSA</a> 2009 <a href="http://openstreetmap.org/">OpenStreetMap.org</a>'})
   NASA_GLOBAL_MOSAIC = Layer::WMS.new("NASA Global Mosaic", 
     [
       "http://t1.hypercube.telascience.org/cgi-bin/landsat7",
@@ -29,9 +33,12 @@ module MapLayers
       "http://t4.hypercube.telascience.org/cgi-bin/landsat7"
     ], 
     {:layers => 'landsat7'} )
-  BLUE_MARBLE_NG = Layer::WMS.new("Blue Marble Next Generation",
+  BLUE_MARBLE_NG = Layer::WMS.new("Blue Marble NG",
     "http://wms.telascience.org/cgi-bin/ngBM_wms",
     {:layers => 'world_topo_bathy'} )
+  METACARTA_VMAP0 = Layer::WMS.new("OpenLayers WMS",
+    "http://labs.metacarta.com/wms/vmap0",
+    {:layers => 'basic'} )
   WORLDWIND = Layer::WorldWind.new("World Wind LANDSAT",
     "http://worldwind25.arc.nasa.gov/tile/tile.aspx", 2.25, 4, {:T => "105"}, {:tileSize => OpenLayers::Size.new(512,512)})
   WORLDWIND_URBAN = Layer::WorldWind.new("World Wind Urban",
