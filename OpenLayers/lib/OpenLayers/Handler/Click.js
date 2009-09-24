@@ -149,7 +149,7 @@ OpenLayers.Handler.Click = OpenLayers.Class(OpenLayers.Handler, {
         if (this.checkModifiers(evt) && 
             this.control.handleRightClicks && 
             OpenLayers.Event.isRightClick(evt)) {
-          propogate = this.rightclick(evt);
+          propagate = this.rightclick(evt);
         }
 
         return propagate;
@@ -284,6 +284,10 @@ OpenLayers.Handler.Click = OpenLayers.Class(OpenLayers.Handler, {
         if(this.timerId != null) {
             window.clearTimeout(this.timerId);
             this.timerId = null;
+        }
+        if(this.rightclickTimerId != null) {
+            window.clearTimeout(this.rightclickTimerId);
+            this.rightclickTimerId = null;
         }
     },
     

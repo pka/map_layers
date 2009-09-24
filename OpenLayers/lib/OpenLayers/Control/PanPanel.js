@@ -5,14 +5,20 @@
 
 /**
  * Class: OpenLayers.Control.PanPanel
- * 
- * Note: If you wish to use this class with the default images and you want 
+ * The PanPanel is visible control for panning the map North, South, East or
+ * West in small steps. By default it is drawn in the top left corner of the
+ * map.
+ *
+ * Note: 
+ * If you wish to use this class with the default images and you want 
  *       it to look nice in ie6, you should add the following, conditionally
  *       added css stylesheet to your HTML file:
  * 
+ * (code)
  * <!--[if lte IE 6]>
  *   <link rel="stylesheet" href="../theme/default/ie6-style.css" type="text/css" />
  * <![endif]-->
+ * (end)
  *
  * Inherits from:
  *  - <OpenLayers.Control.Panel> 

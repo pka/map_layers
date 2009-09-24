@@ -103,8 +103,8 @@ OpenLayers.Popup.Framed =
             // this keeps us from getting into trouble 
             this.updateRelativePosition();
             
-            //make calculateRelativePosition always returnt the specified
-            // fiexed position.
+            //make calculateRelativePosition always return the specified
+            // fixed position.
             this.calculateRelativePosition = function(px) {
                 return this.relativePosition;
             };
@@ -321,8 +321,8 @@ OpenLayers.Popup.Framed =
                 var h = (isNaN(positionBlock.size.h)) ? this.size.h - (b + t) 
                                                       : positionBlock.size.h;
     
-                block.div.style.width = w + 'px';
-                block.div.style.height = h + 'px';
+                block.div.style.width = (w < 0 ? 0 : w) + 'px';
+                block.div.style.height = (h < 0 ? 0 : h) + 'px';
     
                 block.div.style.left = (l != null) ? l + 'px' : '';
                 block.div.style.bottom = (b != null) ? b + 'px' : '';

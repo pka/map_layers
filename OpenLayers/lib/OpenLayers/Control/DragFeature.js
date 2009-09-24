@@ -11,8 +11,8 @@
 
 /**
  * Class: OpenLayers.Control.DragFeature
- * Move a feature with a drag.  Create a new control with the
- *     <OpenLayers.Control.DragFeature> constructor.
+ * The DragFeature control moves a feature with a drag of the mouse. Create a
+ * new control with the <OpenLayers.Control.DragFeature> constructor.
  *
  * Inherits From:
  *  - <OpenLayers.Control>
@@ -162,6 +162,9 @@ OpenLayers.Control.DragFeature = OpenLayers.Class(OpenLayers.Control, {
         this.feature = null;
         this.dragging = false;
         this.lastPixel = null;
+        OpenLayers.Element.removeClass(
+            this.map.viewPortDiv, this.displayClass + "Over"
+        );
         return OpenLayers.Control.prototype.deactivate.apply(this, arguments);
     },
 
@@ -178,8 +181,7 @@ OpenLayers.Control.DragFeature = OpenLayers.Class(OpenLayers.Control, {
             this.feature = feature;
             this.handlers.drag.activate();
             this.over = true;
-            // TBD replace with CSS classes
-            this.map.div.style.cursor = "move";
+            OpenLayers.Element.addClass(this.map.viewPortDiv, this.displayClass + "Over");
         } else {
             if(this.feature.id == feature.id) {
                 this.over = true;
@@ -220,8 +222,7 @@ OpenLayers.Control.DragFeature = OpenLayers.Class(OpenLayers.Control, {
 
     /**
      * Method: upFeature
-     * Called when the drag handler detects a mouse-up.  Also calls the
-     *     optional onComplete method.
+     * Called when the drag handler detects a mouse-up.
      * 
      * Parameters:
      * pixel - {<OpenLayers.Pixel>} Location of the mouse event.
@@ -229,13 +230,6 @@ OpenLayers.Control.DragFeature = OpenLayers.Class(OpenLayers.Control, {
     upFeature: function(pixel) {
         if(!this.over) {
             this.handlers.drag.deactivate();
-            this.feature = null;
-            // TBD replace with CSS classes
-            this.map.div.style.cursor = "default";
-        } else {
-            // the drag handler itself resetted the cursor, so
-            // set it back to "move" here
-            this.map.div.style.cursor = "move";
         }
     },
 
@@ -262,8 +256,9 @@ OpenLayers.Control.DragFeature = OpenLayers.Class(OpenLayers.Control, {
         if(!this.handlers.drag.dragging) {
             this.over = false;
             this.handlers.drag.deactivate();
-            // TBD replace with CSS classes
-            this.map.div.style.cursor = "default";
+            OpenLayers.Element.removeClass(
+                this.map.viewPortDiv, this.displayClass + "Over"
+            );
             this.feature = null;
         } else {
             if(this.feature.id == feature.id) {

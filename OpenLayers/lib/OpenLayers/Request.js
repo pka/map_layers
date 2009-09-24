@@ -3,6 +3,10 @@
  * full text of the license. */
 
 /**
+ * @requires OpenLayers/Events.js
+ */
+
+/**
  * Namespace: OpenLayers.Request
  * The OpenLayers.Request namespace contains convenience methods for working
  *     with XMLHttpRequests.  These methods work with a cross-browser
@@ -31,9 +35,31 @@ OpenLayers.Request = {
     },
     
     /**
+     * APIProperty: events
+     * {<OpenLayers.Events>} An events object that handles all 
+     *     events on the {<OpenLayers.Request>} object.
+     *
+     * All event listeners will receive an event object with three properties:
+     * request - {<OpenLayers.Request.XMLHttpRequest>} The request object.
+     * config - {Object} The config object sent to the specific request method.
+     * requestUrl - {String} The request url.
+     * 
+     * Supported event types:
+     * complete - Triggered when we have a response from the request, if a
+     *     listener returns false, no further response processing will take
+     *     place.
+     * success - Triggered when the HTTP response has a success code (200-299).
+     * failure - Triggered when the HTTP response does not have a success code.
+     */
+    events: new OpenLayers.Events(this, null, ["complete", "success", "failure"]),
+    
+    /**
      * APIMethod: issue
      * Create a new XMLHttpRequest object, open it, set any headers, bind
-     *     a callback to done state, and send any data.
+     *     a callback to done state, and send any data.  It is recommended that
+     *     you use one <GET>, <POST>, <PUT>, <DELETE>, <OPTIONS>, or <HEAD>.
+     *     This method is only documented to provide detail on the configuration
+     *     options available to all request methods.
      *
      * Parameters:
      * config - {Object} Object containing properties for configuring the
@@ -53,12 +79,20 @@ OpenLayers.Request = {
      *     <OpenLayers.ProxyHost>.
      * params - {Object} Any key:value pairs to be appended to the
      *     url as a query string.  Assumes url doesn't already include a query
-     *     string or hash.  Parameter values that are arrays will be
+     *     string or hash.  Typically, this is only appropriate for <GET>
+     *     requests where the query string will be appended to the url.
+     *     Parameter values that are arrays will be
      *     concatenated with a comma (note that this goes against form-encoding)
      *     as is done with <OpenLayers.Util.getParameterString>.
      * headers - {Object} Object with header:value pairs to be set on
      *     the request.
-     * data - {Object} Any data to send with the request.
+     * data - {String | Document} Optional data to send with the request.
+     *     Typically, this is only used with <POST> and <PUT> requests.
+     *     Make sure to provide the appropriate "Content-Type" header for your
+     *     data.  For <POST> and <PUT> requests, the content type defaults to
+     *     "application-xml".  If your data is a different content type, or
+     *     if you are using a different HTTP method, set the "Content-Type"
+     *     header to match your data type.
      * callback - {Function} Function to call when request is done.
      *     To determine if the request failed, check request.status (200
      *     indicates success).
@@ -123,23 +157,49 @@ OpenLayers.Request = {
                 OpenLayers.Function.bind(config.failure, config.scope) :
                 config.failure;
         }
+        
+        var events = this.events;
          
         request.onreadystatechange = function() {
             if(request.readyState == OpenLayers.Request.XMLHttpRequest.DONE) {
-                complete(request);
-                if(success && (!request.status ||
-                   (request.status >= 200 && request.status < 300))) {
-                    success(request);
-                }
-                if(failure && (request.status &&
-                   (request.status < 200 || request.status >= 300))) {
-                    failure(request);
+                var proceed = events.triggerEvent(
+                    "complete",
+                    {request: request, config: config, requestUrl: url}
+                );
+                if(proceed !== false) {
+                    complete(request);
+                    if (!request.status || (request.status >= 200 && request.status < 300)) {
+                        events.triggerEvent(
+                            "success",
+                            {request: request, config: config, requestUrl: url}
+                        );
+                        if(success) {
+                            success(request);
+                        }
+                    }
+                    if(request.status && (request.status < 200 || request.status >= 300)) {                    
+                        events.triggerEvent(
+                            "failure",
+                            {request: request, config: config, requestUrl: url}
+                        );
+                        if(failure) {
+                            failure(request);
+                        }
+                    }
                 }
             }
         };
         
         // send request (optionally with data) and return
-        request.send(config.data);
+        // call in a timeout for asynchronous requests so the return is
+        // available before readyState == 4 for cached docs
+        if(config.async === false) {
+            request.send(config.data);
+        } else {
+            window.setTimeout(function(){
+                request.send(config.data);
+            }, 0);
+        }
         return request;
     },
     

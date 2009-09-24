@@ -45,6 +45,12 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {Object} Cache for symbol sizes according to their svg coordinate space
      */
     symbolSize: {},
+    
+    /**
+     * Property: isGecko
+     * {Boolean}
+     */
+    isGecko: null,
 
     /**
      * Constructor: OpenLayers.Renderer.SVG
@@ -59,6 +65,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         OpenLayers.Renderer.Elements.prototype.initialize.apply(this, 
                                                                 arguments);
         this.translationParameters = {x: 0, y: 0};
+        this.isGecko = (navigator.userAgent.toLowerCase().indexOf("gecko/") != -1);
     },
 
     /**
@@ -247,9 +254,15 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         var widthFactor = 1;
         var pos;
         if (node._geometryClass == "OpenLayers.Geometry.Point" && r) {
-            if (style.externalGraphic) {
+            node.style.visibility = "";
+            if (style.graphic === false) {
+                node.style.visibility = "hidden";
+            } else if (style.externalGraphic) {
                 pos = this.getPosition(node);
                 
+        		if (style.graphicTitle) {
+                    node.setAttributeNS(null, "title", style.graphicTitle);
+                }
                 if (style.graphicWidth && style.graphicHeight) {
                   node.setAttributeNS(null, "preserveAspectRatio", "none");
                 }
@@ -278,23 +291,28 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
                 var href = "#" + id;
                 pos = this.getPosition(node);
                 widthFactor = this.symbolSize[id] / size;
-                // Only set the href if it is different from the current one.
-                // This is a workaround for strange rendering behavior in FF3.
-                if (node.getAttributeNS(this.xlinkns, "href") != href) {
-                    node.setAttributeNS(this.xlinkns, "href", href);
-                } else if (size != parseFloat(node.getAttributeNS(null, "width"))) {
-                    // hide the element (and force a reflow so it really gets
-                    // hidden. This workaround is needed for Safari.
-                    node.style.visibility = "hidden";
-                    this.container.scrollLeft = this.container.scrollLeft;
+                
+                // remove the node from the dom before we modify it. This
+                // prevents various rendering issues in Safari and FF
+                var parent = node.parentNode;
+                var nextSibling = node.nextSibling;
+                if(parent) {
+                    parent.removeChild(node);
                 }
+                
+                node.setAttributeNS(this.xlinkns, "href", href);
                 node.setAttributeNS(null, "width", size);
                 node.setAttributeNS(null, "height", size);
                 node.setAttributeNS(null, "x", pos.x - offset);
                 node.setAttributeNS(null, "y", pos.y - offset);
-                // set the visibility back to normal (after the Safari
-                // workaround above)
-                node.style.visibility = "";
+                
+                // now that the node has all its new properties, insert it
+                // back into the dom where it was
+                if(nextSibling) {
+                    parent.insertBefore(node, nextSibling);
+                } else if(parent) {
+                    parent.appendChild(node);
+                }
             } else {
                 node.setAttributeNS(null, "r", style.pointRadius);
             }
@@ -330,10 +348,11 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
         if (style.pointerEvents) {
             node.setAttributeNS(null, "pointer-events", style.pointerEvents);
         }
-        
+		        
         if (style.cursor != null) {
             node.setAttributeNS(null, "cursor", style.cursor);
         }
+        
         return node;
     },
 
@@ -413,11 +432,14 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
     /**
      * Method: createRoot
      * 
+     * Parameter:
+     * suffix - {String} suffix to append to the id
+     * 
      * Returns:
-     * {DOMElement} The main root element to which we'll add vectors
+     * {DOMElement}
      */
-    createRoot: function() {
-        return this.nodeFactory(this.container.id + "_root", "g");
+    createRoot: function(suffix) {
+        return this.nodeFactory(this.container.id + suffix, "g");
     },
 
     /**
@@ -427,7 +449,7 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
      * {DOMElement} The element to which we'll add the symbol definitions
      */
     createDefs: function() {
-        var defs = this.nodeFactory("ol-renderer-defs", "defs");
+        var defs = this.nodeFactory(this.container.id + "_defs", "defs");
         this.rendererRoot.appendChild(defs);
         return defs;
     },
@@ -630,7 +652,61 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
             return false;
         }    
     },
+    
+    /**
+     * Method: drawText
+     * This method is only called by the renderer itself.
+     * 
+     * Parameters: 
+     * featureId - {String}
+     * style -
+     * location - {<OpenLayers.Geometry.Point>}
+     */
+    drawText: function(featureId, style, location) {
+        var resolution = this.getResolution();
+        
+        var x = (location.x / resolution + this.left);
+        var y = (location.y / resolution - this.top);
+        
+        var label = this.nodeFactory(featureId + this.LABEL_ID_SUFFIX, "text");
+        var tspan = this.nodeFactory(featureId + this.LABEL_ID_SUFFIX + "_tspan", "tspan");
 
+        label.setAttributeNS(null, "x", x);
+        label.setAttributeNS(null, "y", -y);
+        label.setAttributeNS(null, "pointer-events", "none");
+        
+        if (style.fontColor) {
+            label.setAttributeNS(null, "fill", style.fontColor);
+        }
+        if (style.fontFamily) {
+            label.setAttributeNS(null, "font-family", style.fontFamily);
+        }
+        if (style.fontSize) {
+            label.setAttributeNS(null, "font-size", style.fontSize);
+        }
+        if (style.fontWeight) {
+            label.setAttributeNS(null, "font-weight", style.fontWeight);
+        }
+        var align = style.labelAlign || "cm";
+        label.setAttributeNS(null, "text-anchor",
+            OpenLayers.Renderer.SVG.LABEL_ALIGN[align[0]] || "middle");
+
+        if (this.isGecko) {
+            label.setAttributeNS(null, "dominant-baseline",
+                OpenLayers.Renderer.SVG.LABEL_ALIGN[align[1]] || "central");
+        } else {
+            tspan.setAttributeNS(null, "baseline-shift",
+                OpenLayers.Renderer.SVG.LABEL_VSHIFT[align[1]] || "-35%");
+        }
+
+        tspan.textContent = style.label;
+        
+        if(!label.parentNode) {
+            label.appendChild(tspan);
+            this.textRoot.appendChild(label);
+        }   
+    },
+    
     /** 
      * Method: getComponentString
      * 
@@ -825,3 +901,28 @@ OpenLayers.Renderer.SVG = OpenLayers.Class(OpenLayers.Renderer.Elements, {
 
     CLASS_NAME: "OpenLayers.Renderer.SVG"
 });
+
+/**
+ * Constant: OpenLayers.Renderer.SVG.LABEL_ALIGN
+ * {Object}
+ */
+OpenLayers.Renderer.SVG.LABEL_ALIGN = {
+    "l": "start",
+    "r": "end",
+    "b": "bottom",
+    "t": "hanging"
+};
+
+/**
+ * Constant: OpenLayers.Renderer.SVG.LABEL_VSHIFT
+ * {Object}
+ */
+OpenLayers.Renderer.SVG.LABEL_VSHIFT = {
+    // according to
+    // http://www.w3.org/Graphics/SVG/Test/20061213/htmlObjectHarness/full-text-align-02-b.html
+    // a baseline-shift of -70% shifts the text exactly from the
+    // bottom to the top of the baseline, so -35% moves the text to
+    // the center of the baseline.
+    "t": "-70%",
+    "b": "0"    
+};

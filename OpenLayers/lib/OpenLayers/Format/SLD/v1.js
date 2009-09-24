@@ -4,11 +4,8 @@
 
 /**
  * @requires OpenLayers/Rule.js
- * @requires OpenLayers/Filter.js
- * @requires OpenLayers/Filter/FeatureId.js
- * @requires OpenLayers/Filter/Logical.js
- * @requires OpenLayers/Filter/Comparison.js
  * @requires OpenLayers/Format/SLD.js
+ * @requires OpenLayers/Format/Filter/v1_0_0.js
  */
 
 /**
@@ -16,9 +13,9 @@
  * Superclass for SLD version 1 parsers.
  *
  * Inherits from:
- *  - <OpenLayers.Format.XML>
+ *  - <OpenLayers.Format.Filter.v1_0_0>
  */
-OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
+OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.Filter.v1_0_0, {
     
     /**
      * Property: namespaces
@@ -27,6 +24,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
     namespaces: {
         sld: "http://www.opengis.net/sld",
         ogc: "http://www.opengis.net/ogc",
+        gml: "http://www.opengis.net/gml",
         xlink: "http://www.w3.org/1999/xlink",
         xsi: "http://www.w3.org/2001/XMLSchema-instance"
     },
@@ -67,14 +65,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      *     this instance.
      */
     initialize: function(options) {
-        // extend with ogc:Filter readers and writers
-        this.readers["ogc"] = OpenLayers.Format.Filter.v1.prototype.readers["ogc"];
-        this.writers["ogc"] = OpenLayers.Format.Filter.v1.prototype.writers["ogc"];
-        // extend with custom filter methods that may get changed
-        this.readOgcExpression = OpenLayers.Format.Filter.v1.prototype.readOgcExpression;
-        this.getFilterType = OpenLayers.Format.Filter.v1.prototype.getFilterType;
-        this.filterMap = OpenLayers.Format.Filter.v1.prototype.filterMap;
-        OpenLayers.Format.XML.prototype.initialize.apply(this, [options]);
+        OpenLayers.Format.Filter.v1_0_0.prototype.initialize.apply(this, [options]);
     },
     
     /**
@@ -82,13 +73,20 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      *
      * Parameters:
      * data - {DOMElement} An SLD document element.
+     * options - {Object} Options for the reader.
+     *
+     * Valid options:
+     * namedLayersAsArray - {Boolean}  Generate a namedLayers array.  If false,
+     *     the namedLayers property value will be an object keyed by layer name.
+     *     Default is false.
      *
      * Returns:
      * {Object} An object representing the SLD.
      */
-    read: function(data) {        
+    read: function(data, options) {
+        options = OpenLayers.Util.applyDefaults(options, this.options);
         var sld = {
-            namedLayers: {}
+            namedLayers: options.namedLayersAsArray === true ? [] : {}
         };
         this.readChildNodes(data, sld);
         return sld;
@@ -102,7 +100,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      *     with two arguments: the node being read and a context object passed
      *     from the parent.
      */
-    readers: {
+    readers: OpenLayers.Util.applyDefaults({
         "sld": {
             "StyledLayerDescriptor": function(node, sld) {
                 sld.version = node.getAttribute("version");
@@ -127,7 +125,11 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 for(var i=0, len=layer.userStyles.length; i<len; ++i) {
                     layer.userStyles[i].layerName = layer.name;
                 }
-                sld.namedLayers[layer.name] = layer;
+                if(sld.namedLayers instanceof Array) {
+                    sld.namedLayers.push(layer);                
+                } else {
+                    sld.namedLayers[layer.name] = layer;
+                }
             },
             "NamedStyle": function(node, layer) {
                 layer.namedStyles.push(
@@ -135,8 +137,9 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 );
             },
             "UserStyle": function(node, layer) {
-                var style = new OpenLayers.Style(this.defaultSymbolizer);
-                this.readChildNodes(node, style);
+                var obj = {defaultsPerSymbolizer: true, rules: []};
+                this.readChildNodes(node, obj);
+                var style = new OpenLayers.Style(this.defaultSymbolizer, obj);
                 layer.userStyles.push(style);
             },
             "IsDefault": function(node, style) {
@@ -164,13 +167,51 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 rule.elseFilter = true;
             },
             "MinScaleDenominator": function(node, rule) {
-                rule.minScaleDenominator = this.getChildValue(node);
+                rule.minScaleDenominator = parseFloat(this.getChildValue(node));
             },
             "MaxScaleDenominator": function(node, rule) {
-                rule.maxScaleDenominator = this.getChildValue(node);
+                rule.maxScaleDenominator = parseFloat(this.getChildValue(node));
+            },
+            "TextSymbolizer": function(node, rule) {
+                // OpenLayers doens't do painter's order, instead we extend
+                var symbolizer = rule.symbolizer["Text"] || {};
+                this.readChildNodes(node, symbolizer);
+                // in case it didn't exist before
+                rule.symbolizer["Text"] = symbolizer;
+            },
+            "Label": function(node, symbolizer) {
+                // only supporting literal or property name
+                var obj = {};
+                this.readChildNodes(node, obj);
+                if(obj.property) {
+                    symbolizer.label = "${" + obj.property + "}";
+                } else {
+                    var value = this.readOgcExpression(node);
+                    if(value) {
+                        symbolizer.label = value;
+                    }
+                }
+            },
+            "Font": function(node, symbolizer) {
+                this.readChildNodes(node, symbolizer);
+            },
+            "Halo": function(node, symbolizer) {
+                // halo has a fill, so send fresh object
+                var obj = {};
+                this.readChildNodes(node, obj);
+                symbolizer.haloRadius = obj.haloRadius;
+                symbolizer.haloColor = obj.fillColor;
+                symbolizer.haloOpacity = obj.fillOpacity;
+            },
+            "Radius": function(node, symbolizer) {
+                var radius = this.readOgcExpression(node);
+                if(radius != null) {
+                    // radius is only used for halo
+                    symbolizer.haloRadius = radius;
+                }
             },
             "LineSymbolizer": function(node, rule) {
-                // OpenLayers doens't do painter's order, instead we extend
+                // OpenLayers doesn't do painter's order, instead we extend
                 var symbolizer = rule.symbolizer["Line"] || {};
                 this.readChildNodes(node, symbolizer);
                 // in case it didn't exist before
@@ -191,9 +232,11 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 rule.symbolizer["Point"] = symbolizer;
             },
             "Stroke": function(node, symbolizer) {
+                symbolizer.stroke = true;
                 this.readChildNodes(node, symbolizer);
             },
             "Fill": function(node, symbolizer) {
+                symbolizer.fill = true;
                 this.readChildNodes(node, symbolizer);
             },
             "CssParameter": function(node, symbolizer) {
@@ -209,6 +252,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 }
             },
             "Graphic": function(node, symbolizer) {
+                symbolizer.graphic = true;
                 var graphic = {};
                 // painter's order not respected here, clobber previous with next
                 this.readChildNodes(node, graphic);
@@ -250,24 +294,21 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 graphic.graphicName = this.getChildValue(node);
             },
             "Opacity": function(node, obj) {
-                // No support for parsing of OGC expressions
-                var opacity = this.getChildValue(node);
+                var opacity = this.readOgcExpression(node);
                 // always string, could be empty string
                 if(opacity) {
                     obj.opacity = opacity;
                 }
             },
             "Size": function(node, obj) {
-                // No support for parsing of OGC expressions
-                var size = this.getChildValue(node);
+                var size = this.readOgcExpression(node);
                 // always string, could be empty string
                 if(size) {
                     obj.size = size;
                 }
             },
             "Rotation": function(node, obj) {
-                // No support for parsing of OGC expressions
-                var rotation = this.getChildValue(node);
+                var rotation = this.readOgcExpression(node);
                 // always string, could be empty string
                 if(rotation) {
                     obj.rotation = rotation;
@@ -282,7 +323,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 graphic.graphicFormat = this.getChildValue(node);
             }
         }
-    },
+    }, OpenLayers.Format.Filter.v1_0_0.prototype.readers),
     
     /**
      * Property: cssMap
@@ -298,7 +339,9 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         "fill": "fillColor",
         "fill-opacity": "fillOpacity",
         "font-family": "fontFamily",
-        "font-size": "fontSize"
+        "font-size": "fontSize",
+        "font-weight": "fontWeight",
+        "font-style": "fontStyle"
     },
     
     /**
@@ -384,7 +427,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      *     writing functions grouped by namespace alias and named like the
      *     node names they produce.
      */
-    writers: {
+    writers: OpenLayers.Util.applyDefaults({
         "sld": {
             "StyledLayerDescriptor": function(sld) {
                 var root = this.createElementNSPlus(
@@ -396,19 +439,26 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 );
                 // add in optional name
                 if(sld.name) {
-                    this.writeNode(root, "Name", sld.name);
+                    this.writeNode("Name", sld.name, root);
                 }
                 // add in optional title
                 if(sld.title) {
-                    this.writeNode(root, "Title", sld.title);
+                    this.writeNode("Title", sld.title, root);
                 }
                 // add in optional description
                 if(sld.description) {
-                    this.writeNode(root, "Abstract", sld.description);
+                    this.writeNode("Abstract", sld.description, root);
                 }
                 // add in named layers
-                for(var name in sld.namedLayers) {
-                    this.writeNode(root, "NamedLayer", sld.namedLayers[name]);
+                // allow namedLayers to be an array
+                if(sld.namedLayers instanceof Array) {
+                    for(var i=0, len=sld.namedLayers.length; i<len; ++i) {
+                        this.writeNode("NamedLayer", sld.namedLayers[i], root);
+                    }
+                } else {
+                    for(var name in sld.namedLayers) {
+                        this.writeNode("NamedLayer", sld.namedLayers[name], root);
+                    }
                 }
                 return root;
             },
@@ -427,7 +477,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 var node = this.createElementNSPlus("NamedLayer");
 
                 // add in required name
-                this.writeNode(node, "Name", layer.name);
+                this.writeNode("Name", layer.name, node);
 
                 // optional sld:LayerFeatureConstraints here
 
@@ -435,7 +485,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 if(layer.namedStyles) {
                     for(var i=0, len=layer.namedStyles.length; i<len; ++i) {
                         this.writeNode(
-                            node, "NamedStyle", layer.namedStyles[i]
+                            "NamedStyle", layer.namedStyles[i], node
                         );
                     }
                 }
@@ -444,7 +494,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 if(layer.userStyles) {
                     for(var i=0, len=layer.userStyles.length; i<len; ++i) {
                         this.writeNode(
-                            node, "UserStyle", layer.userStyles[i]
+                            "UserStyle", layer.userStyles[i], node
                         );
                     }
                 }
@@ -453,7 +503,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
             },
             "NamedStyle": function(name) {
                 var node = this.createElementNSPlus("NamedStyle");
-                this.writeNode(node, "Name", name);
+                this.writeNode("Name", name, node);
                 return node;
             },
             "UserStyle": function(style) {
@@ -461,24 +511,24 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
 
                 // add in optional name
                 if(style.name) {
-                    this.writeNode(node, "Name", style.name);
+                    this.writeNode("Name", style.name, node);
                 }
                 // add in optional title
                 if(style.title) {
-                    this.writeNode(node, "Title", style.title);
+                    this.writeNode("Title", style.title, node);
                 }
                 // add in optional description
                 if(style.description) {
-                    this.writeNode(node, "Abstract", style.description);
+                    this.writeNode("Abstract", style.description, node);
                 }
                 
                 // add isdefault
                 if(style.isDefault) {
-                    this.writeNode(node, "IsDefault", style.isDefault);
+                    this.writeNode("IsDefault", style.isDefault, node);
                 }
                 
                 // add FeatureTypeStyles
-                this.writeNode(node, "FeatureTypeStyle", style);
+                this.writeNode("FeatureTypeStyle", style, node);
                 
                 return node;
             },
@@ -496,7 +546,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 
                 // add in rules
                 for(var i=0, len=style.rules.length; i<len; ++i) {
-                    this.writeNode(node, "Rule", style.rules[i]);
+                    this.writeNode("Rule", style.rules[i], node);
                 }
                 
                 return node;
@@ -506,35 +556,35 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
 
                 // add in optional name
                 if(rule.name) {
-                    this.writeNode(node, "Name", rule.name);
+                    this.writeNode("Name", rule.name, node);
                 }
                 // add in optional title
                 if(rule.title) {
-                    this.writeNode(node, "Title", rule.title);
+                    this.writeNode("Title", rule.title, node);
                 }
                 // add in optional description
                 if(rule.description) {
-                    this.writeNode(node, "Abstract", rule.description);
+                    this.writeNode("Abstract", rule.description, node);
                 }
                 
                 // add in LegendGraphic here
                 
                 // add in optional filters
                 if(rule.elseFilter) {
-                    this.writeNode(node, "ElseFilter");
+                    this.writeNode("ElseFilter", null, node);
                 } else if(rule.filter) {
-                    this.writeNode(node, "ogc:Filter", rule.filter);
+                    this.writeNode("ogc:Filter", rule.filter, node);
                 }
                 
                 // add in scale limits
                 if(rule.minScaleDenominator != undefined) {
                     this.writeNode(
-                        node, "MinScaleDenominator", rule.minScaleDenominator
+                        "MinScaleDenominator", rule.minScaleDenominator, node
                     );
                 }
                 if(rule.maxScaleDenominator != undefined) {
                     this.writeNode(
-                        node, "MaxScaleDenominator", rule.maxScaleDenominator
+                        "MaxScaleDenominator", rule.maxScaleDenominator, node
                     );
                 }
                 
@@ -546,7 +596,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     symbolizer = rule.symbolizer[type];
                     if(symbolizer) {
                         this.writeNode(
-                            node, type + "Symbolizer", symbolizer
+                            type + "Symbolizer", symbolizer, node
                         );
                     }
                 }
@@ -568,7 +618,7 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
             },
             "LineSymbolizer": function(symbolizer) {
                 var node = this.createElementNSPlus("LineSymbolizer");
-                this.writeNode(node, "Stroke", symbolizer);
+                this.writeNode("Stroke", symbolizer, node);
                 return node;
             },
             "Stroke": function(symbolizer) {
@@ -580,20 +630,23 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 // add in CssParameters
                 if(symbolizer.strokeColor != undefined) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "strokeColor"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "strokeColor"},
+                        node
                     );
                 }
                 if(symbolizer.strokeOpacity != undefined) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "strokeOpacity"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "strokeOpacity"},
+                        node
                     );
                 }
                 if(symbolizer.strokeWidth != undefined) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "strokeWidth"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "strokeWidth"},
+                        node
                     );
                 }
                 return node;
@@ -609,17 +662,25 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 var node = this.createElementNSPlus("TextSymbolizer");
                 // add in optional Label
                 if(symbolizer.label != null) {
-                    this.writeNode(node, "Label", symbolizer.label);
+                    this.writeNode("Label", symbolizer.label, node);
                 }
                 // add in optional Font
                 if(symbolizer.fontFamily != null ||
-                   symbolizer.fontSize != null) {
-                    this.writeNode(node, "Font", symbolizer);
+                   symbolizer.fontSize != null ||
+                   symbolizer.fontWeight != null ||
+                   symbolizer.fontStyle != null) {
+                    this.writeNode("Font", symbolizer, node);
+                }
+                // add in optional Halo
+                if(symbolizer.haloRadius != null ||
+                   symbolizer.haloColor != null ||
+                   symbolizer.haloOpacity != null) {
+                    this.writeNode("Halo", symbolizer, node);
                 }
                 // add in optional Fill
                 if(symbolizer.fillColor != null ||
                    symbolizer.fillOpacity != null) {
-                    this.writeNode(node, "Fill", symbolizer);
+                    this.writeNode("Fill", symbolizer, node);
                 }
                 return node;
             },
@@ -628,14 +689,30 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 // add in CssParameters
                 if(symbolizer.fontFamily) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "fontFamily"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "fontFamily"},
+                        node
                     );
                 }
                 if(symbolizer.fontSize) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "fontSize"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "fontSize"},
+                        node
+                    );
+                }
+                if(symbolizer.fontWeight) {
+                    this.writeNode(
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "fontWeight"},
+                        node
+                    );
+                }
+                if(symbolizer.fontStyle) {
+                    this.writeNode(
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "fontStyle"},
+                        node
                     );
                 }
                 return node;
@@ -652,8 +729,9 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     last = item.indexOf("}"); 
                     if(last > 0) {
                         this.writeNode(
-                            node, "ogc:PropertyName",
-                            {property: item.substring(0, last)}
+                            "ogc:PropertyName",
+                            {property: item.substring(0, last)},
+                            node
                         );
                         node.appendChild(
                             this.createTextNode(item.substring(++last))
@@ -667,10 +745,36 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 }
                 return node;
             },
+            "Halo": function(symbolizer) {
+                var node = this.createElementNSPlus("Halo");
+                if(symbolizer.haloRadius) {
+                    this.writeNode("Radius", symbolizer.haloRadius, node);
+                }
+                if(symbolizer.haloColor || symbolizer.haloOpacity) {
+                    this.writeNode("Fill", {
+                        fillColor: symbolizer.haloColor,
+                        fillOpacity: symbolizer.haloOpacity
+                    }, node);
+                }
+                return node;
+            },
+            "Radius": function(value) {
+                return node = this.createElementNSPlus("Radius", {
+                    value: value
+                });
+            },
             "PolygonSymbolizer": function(symbolizer) {
                 var node = this.createElementNSPlus("PolygonSymbolizer");
-                this.writeNode(node, "Fill", symbolizer);
-                this.writeNode(node, "Stroke", symbolizer);
+                if(symbolizer.fillColor != undefined ||
+                   symbolizer.fillOpacity != undefined) {
+                    this.writeNode("Fill", symbolizer, node);
+                }
+                if(symbolizer.strokeWidth != undefined ||
+                   symbolizer.strokeColor != undefined ||
+                   symbolizer.strokeOpacity != undefined ||
+                   symbolizer.strokeDashstyle != undefined) {
+                    this.writeNode("Stroke", symbolizer, node);
+                }
                 return node;
             },
             "Fill": function(symbolizer) {
@@ -681,57 +785,61 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 // add in CssParameters
                 if(symbolizer.fillColor) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "fillColor"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "fillColor"},
+                        node
                     );
                 }
-                if(symbolizer.fillOpacity) {
+                if(symbolizer.fillOpacity != null) {
                     this.writeNode(
-                        node, "CssParameter",
-                        {symbolizer: symbolizer, key: "fillOpacity"}
+                        "CssParameter",
+                        {symbolizer: symbolizer, key: "fillOpacity"},
+                        node
                     );
                 }
                 return node;
             },
             "PointSymbolizer": function(symbolizer) {
                 var node = this.createElementNSPlus("PointSymbolizer");
-                this.writeNode(node, "Graphic", symbolizer);
+                this.writeNode("Graphic", symbolizer, node);
                 return node;
             },
             "Graphic": function(symbolizer) {
                 var node = this.createElementNSPlus("Graphic");
                 if(symbolizer.externalGraphic != undefined) {
-                    this.writeNode(node, "ExternalGraphic", symbolizer);
-                } else if(symbolizer.graphicName) {
-                    this.writeNode(node, "Mark", symbolizer);
+                    this.writeNode("ExternalGraphic", symbolizer, node);
+                } else {
+                    this.writeNode("Mark", symbolizer, node);
                 }
                 
                 if(symbolizer.graphicOpacity != undefined) {
-                    this.writeNode(node, "Opacity", symbolizer.graphicOpacity);
+                    this.writeNode("Opacity", symbolizer.graphicOpacity, node);
                 }
                 if(symbolizer.pointRadius != undefined) {
-                    this.writeNode(node, "Size", symbolizer.pointRadius * 2);
+                    this.writeNode("Size", symbolizer.pointRadius * 2, node);
                 }
                 if(symbolizer.rotation != undefined) {
-                    this.writeNode(node, "Rotation", symbolizer.rotation);
+                    this.writeNode("Rotation", symbolizer.rotation, node);
                 }
                 return node;
             },
             "ExternalGraphic": function(symbolizer) {
                 var node = this.createElementNSPlus("ExternalGraphic");
                 this.writeNode(
-                    node, "OnlineResource", symbolizer.externalGraphic
+                    "OnlineResource", symbolizer.externalGraphic, node
                 );
                 var format = symbolizer.graphicFormat ||
                              this.getGraphicFormat(symbolizer.externalGraphic);
-                this.writeNode(node, "Format", format);
+                this.writeNode("Format", format, node);
                 return node;
             },
             "Mark": function(symbolizer) {
                 var node = this.createElementNSPlus("Mark");
-                this.writeNode(node, "WellKnownName", symbolizer.graphicName);
-                this.writeNode(node, "Fill", symbolizer);
-                this.writeNode(node, "Stroke", symbolizer);
+                if(symbolizer.graphicName) {
+                    this.writeNode("WellKnownName", symbolizer.graphicName, node);
+                }
+                this.writeNode("Fill", symbolizer, node);
+                this.writeNode("Stroke", symbolizer, node);
                 return node;
             },
             "WellKnownName": function(name) {
@@ -768,155 +876,8 @@ OpenLayers.Format.SLD.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 });
             }
         }
-    },
+    }, OpenLayers.Format.Filter.v1_0_0.prototype.writers),
     
-    /**
-     * Methods below this point are of general use for versioned XML parsers.
-     * These are candidates for an abstract class.
-     */
-    
-    /**
-     * Method: getNamespacePrefix
-     * Get the namespace prefix for a given uri from the <namespaces> object.
-     *
-     * Returns:
-     * {String} A namespace prefix or null if none found.
-     */
-    getNamespacePrefix: function(uri) {
-        var prefix = null;
-        if(uri == null) {
-            prefix = this.namespaces[this.defaultPrefix];
-        } else {
-            var gotPrefix = false;
-            for(prefix in this.namespaces) {
-                if(this.namespaces[prefix] == uri) {
-                    gotPrefix = true;
-                    break;
-                }
-            }
-            if(!gotPrefix) {
-                prefix = null;
-            }
-        }
-        return prefix;
-    },
-
-
-    /**
-     * Method: readChildNodes
-     */
-    readChildNodes: function(node, obj) {
-        var children = node.childNodes;
-        var child, group, reader, prefix, local;
-        for(var i=0, len=children.length; i<len; ++i) {
-            child = children[i];
-            if(child.nodeType == 1) {
-                prefix = this.getNamespacePrefix(child.namespaceURI);
-                local = child.nodeName.split(":").pop();
-                group = this.readers[prefix];
-                if(group) {
-                    reader = group[local];
-                    if(reader) {
-                        reader.apply(this, [child, obj]);
-                    }
-                }
-            }
-        }
-    },
-
-    /**
-     * Method: writeNode
-     * Shorthand for applying one of the named writers and appending the
-     *     results to a node.  If a qualified name is not provided for the
-     *     second argument (and a local name is used instead), the namespace
-     *     of the parent node will be assumed.
-     *
-     * Parameters:
-     * parent - {DOMElement} Result will be appended to this node.
-     * name - {String} The name of a node to generate.  If a qualified name
-     *     (e.g. "pre:Name") is used, the namespace prefix is assumed to be
-     *     in the <writers> group.  If a local name is used (e.g. "Name") then
-     *     the namespace of the parent is assumed.
-     * obj - {Object} Structure containing data for the writer.
-     *
-     * Returns:
-     * {DOMElement} The child node.
-     */
-    writeNode: function(parent, name, obj) {
-        var prefix, local;
-        var split = name.indexOf(":");
-        if(split > 0) {
-            prefix = name.substring(0, split);
-            local = name.substring(split + 1);
-        } else {
-            prefix = this.getNamespacePrefix(parent.namespaceURI);
-            local = name;
-        }
-        var child = this.writers[prefix][local].apply(this, [obj]);
-        parent.appendChild(child);
-        return child;
-    },
-    
-    /**
-     * Method: createElementNSPlus
-     * Shorthand for creating namespaced elements with optional attributes and
-     *     child text nodes.
-     *
-     * Parameters:
-     * name - {String} The qualified node name.
-     * options - {Object} Optional object for node configuration.
-     *
-     * Returns:
-     * {Element} An element node.
-     */
-    createElementNSPlus: function(name, options) {
-        options = options || {};
-        var loc = name.indexOf(":");
-        // order of prefix preference
-        // 1. in the uri option
-        // 2. in the prefix option
-        // 3. in the qualified name
-        // 4. from the defaultPrefix
-        var uri = options.uri || this.namespaces[options.prefix];
-        if(!uri) {
-            loc = name.indexOf(":");
-            uri = this.namespaces[name.substring(0, loc)];
-        }
-        if(!uri) {
-            uri = this.namespaces[this.defaultPrefix];
-        }
-        var node = this.createElementNS(uri, name);
-        if(options.attributes) {
-            this.setAttributes(node, options.attributes);
-        }
-        if(options.value) {
-            node.appendChild(this.createTextNode(options.value));
-        }
-        return node;
-    },
-    
-    /**
-     * Method: setAttributes
-     * Set multiple attributes given key value pairs from an object.
-     *
-     * Parameters:
-     * node - {Element} An element node.
-     * obj - {Object || Array} An object whose properties represent attribute
-     *     names and values represent attribute values.  If an attribute name
-     *     is a qualified name ("prefix:local"), the prefix will be looked up
-     *     in the parsers {namespaces} object.  If the prefix is found,
-     *     setAttributeNS will be used instead of setAttribute.
-     */
-    setAttributes: function(node, obj) {
-        var value, loc, alias, uri;
-        for(var name in obj) {
-            value = obj[name].toString();
-            // check for qualified attribute name ("prefix:local")
-            uri = this.namespaces[name.substring(0, name.indexOf(":"))] || null;
-            this.setAttributeNS(node, uri, name, value);
-        }
-    },
-
     CLASS_NAME: "OpenLayers.Format.SLD.v1" 
 
 });

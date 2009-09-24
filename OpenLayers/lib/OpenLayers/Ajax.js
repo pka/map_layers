@@ -4,6 +4,7 @@
 
 /**
  * @requires OpenLayers/Request/XMLHttpRequest.js
+ * @requires OpenLayers/Console.js
  */
 
 OpenLayers.ProxyHost = "";
@@ -42,7 +43,7 @@ OpenLayers.nullHandler = function(request) {
 };
 
 /** 
- * Function: loadURL
+ * APIFunction: loadURL
  * Background load a document.  For more flexibility in using XMLHttpRequest,
  *     see the <OpenLayers.Request> methods.
  *

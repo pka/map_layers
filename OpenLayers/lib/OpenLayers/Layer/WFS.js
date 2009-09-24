@@ -7,6 +7,7 @@
  * @requires OpenLayers/Tile/WFS.js
  * @requires OpenLayers/Layer/Vector.js
  * @requires OpenLayers/Layer/Markers.js
+ * @requires OpenLayers/Console.js
  */
 
 /**
@@ -278,15 +279,27 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
             //formulate request url string
             var url = this.getFullRequestString();
         
-            var params = {BBOX: this.encodeBBOX ? tileBounds.toBBOX() 
-                                                : tileBounds.toArray()};
+            var params = null;
+
+            // Cant combine "filter" and "BBOX". This is a cheap hack to help
+            // people out who can't migrate to the WFS protocol immediately.
+            var filter = this.params.filter || this.params.FILTER;
+            if (filter) {
+                params = {FILTER: filter};
+            }
+            else {
+                params = {BBOX: this.encodeBBOX ? tileBounds.toBBOX() 
+                                                    : tileBounds.toArray()};
+            }
             
             if (this.map && !this.projection.equals(this.map.getProjectionObject())) {
                 var projectedBounds = tileBounds.clone();
                 projectedBounds.transform(this.map.getProjectionObject(), 
                                           this.projection);
-                params.BBOX = this.encodeBBOX ? projectedBounds.toBBOX() 
-                                              : projectedBounds.toArray();
+                if (!filter){
+                    params.BBOX = this.encodeBBOX ? projectedBounds.toBBOX() 
+                                                : projectedBounds.toArray();
+                }
             }                                  
 
             url += "&" + OpenLayers.Util.getParameterString(params);
@@ -375,6 +388,20 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
                                                                 arguments);
         } else {
             OpenLayers.Layer.Markers.prototype.onMapResize.apply(this, 
+                                                                 arguments);
+        }
+    },
+    
+    /**
+     * Method: display
+     * Call the display method of the appropriate parent class. 
+     */
+    display: function() {
+        if(this.vectorMode) {
+            OpenLayers.Layer.Vector.prototype.display.apply(this, 
+                                                                arguments);
+        } else {
+            OpenLayers.Layer.Markers.prototype.display.apply(this, 
                                                                  arguments);
         }
     },
@@ -530,6 +557,41 @@ OpenLayers.Layer.WFS = OpenLayers.Class(
             }    
             this.tile.draw();
         }
+    },
+    
+    /** 
+     * APIMethod: getDataExtent
+     * Calculates the max extent which includes all of the layer data.
+     * 
+     * Returns:
+     * {<OpenLayers.Bounds>}
+     */
+    getDataExtent: function () {
+        var extent; 
+        //get all additions from superclasses
+        if (this.vectorMode) {
+            extent = OpenLayers.Layer.Vector.prototype.getDataExtent.apply(this);
+        } else {
+            extent = OpenLayers.Layer.Markers.prototype.getDataExtent.apply(this);
+        }    
+
+        return extent;
+    },
+    
+    /** 
+     * APIMethod: setOpacity 
+     * Call the setOpacity method of the appropriate parent class to set the
+     *     opacity.  
+     * 
+     * Parameter: 
+     * opacity - {Float} 
+     */
+    setOpacity: function (opacity) {
+        if (this.vectorMode) {
+            OpenLayers.Layer.Vector.prototype.setOpacity.apply(this, [opacity]);
+        } else {
+            OpenLayers.Layer.Markers.prototype.setOpacity.apply(this, [opacity]);
+        }    
     },
 
     CLASS_NAME: "OpenLayers.Layer.WFS"

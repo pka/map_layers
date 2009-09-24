@@ -4,6 +4,7 @@
 
 /**
  * @requires OpenLayers/Filter.js
+ * @requires OpenLayers/Console.js
  */
 
 /**
@@ -24,6 +25,8 @@ OpenLayers.Filter.Spatial = OpenLayers.Class(OpenLayers.Filter, {
      * - OpenLayers.Filter.Spatial.BBOX
      * - OpenLayers.Filter.Spatial.INTERSECTS
      * - OpenLayers.Filter.Spatial.DWITHIN
+     * - OpenLayers.Filter.Spatial.WITHIN
+     * - OpenLayers.Filter.Spatial.CONTAINS
      */
     type: null,
     
@@ -101,9 +104,24 @@ OpenLayers.Filter.Spatial = OpenLayers.Class(OpenLayers.Filter, {
         return intersect;
     },
 
+    /**
+     * APIMethod: clone
+     * Clones this filter.
+     * 
+     * Returns:
+     * {<OpenLayers.Filter.Spatial>} Clone of this filter.
+     */
+    clone: function() {
+        var options = OpenLayers.Util.applyDefaults({
+            value: this.value && this.value.clone && this.value.clone()
+        }, this);
+        return new OpenLayers.Filter.Spatial(options);
+    },
     CLASS_NAME: "OpenLayers.Filter.Spatial"
 });
 
 OpenLayers.Filter.Spatial.BBOX = "BBOX";
 OpenLayers.Filter.Spatial.INTERSECTS = "INTERSECTS";
 OpenLayers.Filter.Spatial.DWITHIN = "DWITHIN";
+OpenLayers.Filter.Spatial.WITHIN = "WITHIN";
+OpenLayers.Filter.Spatial.CONTAINS = "CONTAINS";

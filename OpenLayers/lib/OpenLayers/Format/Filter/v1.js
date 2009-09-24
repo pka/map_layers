@@ -4,6 +4,7 @@
 
 /**
  * @requires OpenLayers/Format/Filter.js
+ * @requires OpenLayers/Format/XML.js
  */
 
 /**
@@ -21,6 +22,7 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      */
     namespaces: {
         ogc: "http://www.opengis.net/ogc",
+        gml: "http://www.opengis.net/gml",
         xlink: "http://www.w3.org/1999/xlink",
         xsi: "http://www.w3.org/2001/XMLSchema-instance"
     },
@@ -60,7 +62,7 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      */
     read: function(data) {
         var obj = {};
-        var filter = this.readers.ogc["Filter"].apply(this, [data, obj]);
+        this.readers.ogc["Filter"].apply(this, [data, obj]);
         return obj.filter;
     },
     
@@ -119,20 +121,6 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 this.readChildNodes(node, filter);
                 obj.filters.push(filter);
             },
-            "PropertyIsEqualTo": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.EQUAL_TO
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
-            "PropertyIsNotEqualTo": function(node, obj) {
-                var filter = new OpenLayers.Filter.Comparison({
-                    type: OpenLayers.Filter.Comparison.NOT_EQUAL_TO
-                });
-                this.readChildNodes(node, filter);
-                obj.filters.push(filter);
-            },
             "PropertyIsLessThan": function(node, obj) {
                 var filter = new OpenLayers.Filter.Comparison({
                     type: OpenLayers.Filter.Comparison.LESS_THAN
@@ -180,21 +168,62 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 obj.filters.push(filter);
             },
             "Literal": function(node, obj) {
-                obj.value = this.getChildValue(node);
+                obj.value = OpenLayers.String.numericIf(
+                    this.getChildValue(node));
             },
             "PropertyName": function(node, filter) {
                 filter.property = this.getChildValue(node);
             },
             "LowerBoundary": function(node, filter) {
-                filter.lowerBoundary = this.readOgcExpression(node);
+                filter.lowerBoundary = OpenLayers.String.numericIf(
+                    this.readOgcExpression(node));
             },
             "UpperBoundary": function(node, filter) {
-                filter.upperBoundary = this.readOgcExpression(node);
+                filter.upperBoundary = OpenLayers.String.numericIf(
+                    this.readOgcExpression(node));
+            },
+            "Intersects": function(node, obj) {
+                this.readSpatial(node, obj, OpenLayers.Filter.Spatial.INTERSECTS);
+            },
+            "Within": function(node, obj) {
+                this.readSpatial(node, obj, OpenLayers.Filter.Spatial.WITHIN);
+            },
+            "Contains": function(node, obj) {
+                this.readSpatial(node, obj, OpenLayers.Filter.Spatial.CONTAINS);
+            },
+            "DWithin": function(node, obj) {
+                this.readSpatial(node, obj, OpenLayers.Filter.Spatial.DWITHIN);
+            },
+            "Distance": function(node, obj) {
+                obj.distance = parseInt(this.getChildValue(node));
+                obj.distanceUnits = node.getAttribute("units");
             }
-            
         }
     },
     
+    /**
+     * Method: readSpatial
+     *
+     * Read a {<OpenLayers.Filter.Spatial>} filter.
+     * 
+     * Parameters:
+     * node - {DOMElement} A DOM element that contains an ogc:expression.
+     * obj - {Object} The target object.
+     * type - {String} One of the OpenLayers.Filter.Spatial.* constants.
+     *
+     * Returns:
+     * {<OpenLayers.Filter.Spatial>} The created filter.
+     */
+    readSpatial: function(node, obj, type) {
+        var filter = new OpenLayers.Filter.Spatial({
+            type: type
+        });
+        this.readChildNodes(node, filter);
+        filter.value = filter.components[0];
+        delete filter.components;
+        obj.filters.push(filter);
+    },
+
     /**
      * Method: readOgcExpression
      * Limited support for OGC expressions.
@@ -241,10 +270,10 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 var sub = filter.CLASS_NAME.split(".").pop();
                 if(sub == "FeatureId") {
                     for(var i=0; i<filter.fids.length; ++i) {
-                        this.writeNode(node, "FeatureId", filter.fids[i]);
+                        this.writeNode("FeatureId", filter.fids[i], node);
                     }
                 } else {
-                    this.writeNode(node, this.getFilterType(filter), filter);
+                    this.writeNode(this.getFilterType(filter), filter, node);
                 }
                 return node;
             },
@@ -259,7 +288,7 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 for(var i=0; i<filter.filters.length; ++i) {
                     childFilter = filter.filters[i];
                     this.writeNode(
-                        node, this.getFilterType(childFilter), childFilter
+                        this.getFilterType(childFilter), childFilter, node
                     );
                 }
                 return node;
@@ -270,7 +299,7 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 for(var i=0; i<filter.filters.length; ++i) {
                     childFilter = filter.filters[i];
                     this.writeNode(
-                        node, this.getFilterType(childFilter), childFilter
+                        this.getFilterType(childFilter), childFilter, node
                     );
                 }
                 return node;
@@ -279,58 +308,44 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                 var node = this.createElementNSPlus("ogc:Not");
                 var childFilter = filter.filters[0];
                 this.writeNode(
-                    node, this.getFilterType(childFilter), childFilter
+                    this.getFilterType(childFilter), childFilter, node
                 );
-                return node;
-            },
-            "PropertyIsEqualTo": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsEqualTo");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
-                return node;
-            },
-            "PropertyIsNotEqualTo": function(filter) {
-                var node = this.createElementNSPlus("ogc:PropertyIsNotEqualTo");
-                // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
                 return node;
             },
             "PropertyIsLessThan": function(filter) {
                 var node = this.createElementNSPlus("ogc:PropertyIsLessThan");
                 // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);                
+                this.writeNode("PropertyName", filter, node);
+                this.writeNode("Literal", filter.value, node);                
                 return node;
             },
             "PropertyIsGreaterThan": function(filter) {
                 var node = this.createElementNSPlus("ogc:PropertyIsGreaterThan");
                 // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
+                this.writeNode("PropertyName", filter, node);
+                this.writeNode("Literal", filter.value, node);
                 return node;
             },
             "PropertyIsLessThanOrEqualTo": function(filter) {
                 var node = this.createElementNSPlus("ogc:PropertyIsLessThanOrEqualTo");
                 // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
+                this.writeNode("PropertyName", filter, node);
+                this.writeNode("Literal", filter.value, node);
                 return node;
             },
             "PropertyIsGreaterThanOrEqualTo": function(filter) {
                 var node = this.createElementNSPlus("ogc:PropertyIsGreaterThanOrEqualTo");
                 // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "Literal", filter.value);
+                this.writeNode("PropertyName", filter, node);
+                this.writeNode("Literal", filter.value, node);
                 return node;
             },
             "PropertyIsBetween": function(filter) {
                 var node = this.createElementNSPlus("ogc:PropertyIsBetween");
                 // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
-                this.writeNode(node, "LowerBoundary", filter);
-                this.writeNode(node, "UpperBoundary", filter);
+                this.writeNode("PropertyName", filter, node);
+                this.writeNode("LowerBoundary", filter, node);
+                this.writeNode("UpperBoundary", filter, node);
                 return node;
             },
             "PropertyIsLike": function(filter) {
@@ -340,9 +355,9 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
                     }
                 });
                 // no ogc:expression handling for now
-                this.writeNode(node, "PropertyName", filter);
+                this.writeNode("PropertyName", filter, node);
                 // convert regex string to ogc string
-                this.writeNode(node, "Literal", filter.regex2value());
+                this.writeNode("Literal", filter.regex2value(), node);
                 return node;
             },
             "PropertyName": function(filter) {
@@ -360,45 +375,40 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
             "LowerBoundary": function(filter) {
                 // no ogc:expression handling for now
                 var node = this.createElementNSPlus("ogc:LowerBoundary");
-                this.writeNode(node, "Literal", filter.lowerBoundary);
+                this.writeNode("Literal", filter.lowerBoundary, node);
                 return node;
             },
             "UpperBoundary": function(filter) {
                 // no ogc:expression handling for now
                 var node = this.createElementNSPlus("ogc:UpperBoundary");
-                this.writeNode(node, "Literal", filter.upperBoundary);
-                return node;
-            },
-            "BBOX": function(filter) {
-                var node = this.createElementNSPlus("ogc:BBOX");
-                this.writeNode(node, "PropertyName", filter);
-                var gml = new OpenLayers.Format.GML();
-                node.appendChild(gml.buildGeometryNode(filter.value)); 
-                return node;
-            },
-            "DWITHIN": function(filter) {
-                var node = this.createElementNSPlus("ogc:DWithin");
-                this.writeNode(node, "PropertyName", filter);
-                var gml = new OpenLayers.Format.GML();
-                node.appendChild(gml.buildGeometryNode(filter.value));
-                this.writeNode(node, "Distance", filter);
+                this.writeNode("Literal", filter.upperBoundary, node);
                 return node;
             },
             "INTERSECTS": function(filter) {
-                var node = this.createElementNSPlus("ogc:Intersects");
-                this.writeNode(node, "PropertyName", filter);
-                var gml = new OpenLayers.Format.GML();
-                node.appendChild(gml.buildGeometryNode(filter.value));
+                return this.writeSpatial(filter, "Intersects");
+            },
+            "WITHIN": function(filter) {
+                return this.writeSpatial(filter, "Within");
+            },
+            "CONTAINS": function(filter) {
+                return this.writeSpatial(filter, "Contains");
+            },
+            "DWITHIN": function(filter) {
+                var node = this.writeSpatial(filter, "DWithin");
+                this.writeNode("Distance", filter, node);
                 return node;
             },
             "Distance": function(filter) {
-                return this.createElementNSPlus("ogc:Distance", 
-                    {attributes: {units: filter.distanceUnits}, 
-                     value: filter.distance});
+                return this.createElementNSPlus("ogc:Distance", {
+                    attributes: {
+                        units: filter.distanceUnits
+                    },
+                    value: filter.distance
+                });
             }
         }
     },
-    
+
     /**
      * Method: getFilterType
      */
@@ -429,155 +439,9 @@ OpenLayers.Format.Filter.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
         "~": "PropertyIsLike",
         "BBOX": "BBOX",
         "DWITHIN": "DWITHIN",
+        "WITHIN": "WITHIN",
+        "CONTAINS": "CONTAINS",
         "INTERSECTS": "INTERSECTS"
-    },
-    
-
-    /**
-     * Methods below this point are of general use for versioned XML parsers.
-     * These are candidates for an abstract class.
-     */
-    
-    /**
-     * Method: getNamespacePrefix
-     * Get the namespace prefix for a given uri from the <namespaces> object.
-     *
-     * Returns:
-     * {String} A namespace prefix or null if none found.
-     */
-    getNamespacePrefix: function(uri) {
-        var prefix = null;
-        if(uri == null) {
-            prefix = this.namespaces[this.defaultPrefix];
-        } else {
-            var gotPrefix = false;
-            for(prefix in this.namespaces) {
-                if(this.namespaces[prefix] == uri) {
-                    gotPrefix = true;
-                    break;
-                }
-            }
-            if(!gotPrefix) {
-                prefix = null;
-            }
-        }
-        return prefix;
-    },
-
-
-    /**
-     * Method: readChildNodes
-     */
-    readChildNodes: function(node, obj) {
-        var children = node.childNodes;
-        var child, group, reader, prefix, local;
-        for(var i=0; i<children.length; ++i) {
-            child = children[i];
-            if(child.nodeType == 1) {
-                prefix = this.getNamespacePrefix(child.namespaceURI);
-                local = child.nodeName.split(":").pop();
-                group = this.readers[prefix];
-                if(group) {
-                    reader = group[local];
-                    if(reader) {
-                        reader.apply(this, [child, obj]);
-                    }
-                }
-            }
-        }
-    },
-
-    /**
-     * Method: writeNode
-     * Shorthand for applying one of the named writers and appending the
-     *     results to a node.  If a qualified name is not provided for the
-     *     second argument (and a local name is used instead), the namespace
-     *     of the parent node will be assumed.
-     *
-     * Parameters:
-     * parent - {DOMElement} Result will be appended to this node.
-     * name - {String} The name of a node to generate.  If a qualified name
-     *     (e.g. "pre:Name") is used, the namespace prefix is assumed to be
-     *     in the <writers> group.  If a local name is used (e.g. "Name") then
-     *     the namespace of the parent is assumed.
-     * obj - {Object} Structure containing data for the writer.
-     *
-     * Returns:
-     * {DOMElement} The child node.
-     */
-    writeNode: function(parent, name, obj) {
-        var prefix, local;
-        var split = name.indexOf(":");
-        if(split > 0) {
-            prefix = name.substring(0, split);
-            local = name.substring(split + 1);
-        } else {
-            prefix = this.getNamespacePrefix(parent.namespaceURI);
-            local = name;
-        }
-        var child = this.writers[prefix][local].apply(this, [obj]);
-        parent.appendChild(child);
-        return child;
-    },
-    
-    /**
-     * Method: createElementNSPlus
-     * Shorthand for creating namespaced elements with optional attributes and
-     *     child text nodes.
-     *
-     * Parameters:
-     * name - {String} The qualified node name.
-     * options - {Object} Optional object for node configuration.
-     *
-     * Returns:
-     * {Element} An element node.
-     */
-    createElementNSPlus: function(name, options) {
-        options = options || {};
-        var loc = name.indexOf(":");
-        // order of prefix preference
-        // 1. in the uri option
-        // 2. in the prefix option
-        // 3. in the qualified name
-        // 4. from the defaultPrefix
-        var uri = options.uri || this.namespaces[options.prefix];
-        if(!uri) {
-            loc = name.indexOf(":");
-            uri = this.namespaces[name.substring(0, loc)];
-        }
-        if(!uri) {
-            uri = this.namespaces[this.defaultPrefix];
-        }
-        var node = this.createElementNS(uri, name);
-        if(options.attributes) {
-            this.setAttributes(node, options.attributes);
-        }
-        if(options.value) {
-            node.appendChild(this.createTextNode(options.value));
-        }
-        return node;
-    },
-    
-    /**
-     * Method: setAttributes
-     * Set multiple attributes given key value pairs from an object.
-     *
-     * Parameters:
-     * node - {Element} An element node.
-     * obj - {Object || Array} An object whose properties represent attribute
-     *     names and values represent attribute values.  If an attribute name
-     *     is a qualified name ("prefix:local"), the prefix will be looked up
-     *     in the parsers {namespaces} object.  If the prefix is found,
-     *     setAttributeNS will be used instead of setAttribute.
-     */
-    setAttributes: function(node, obj) {
-        var value, loc, alias, uri;
-        for(var name in obj) {
-            value = obj[name].toString();
-            // check for qualified attribute name ("prefix:local")
-            uri = this.namespaces[name.substring(0, name.indexOf(":"))] || null;
-            this.setAttributeNS(node, uri, name, value);
-        }
     },
 
     CLASS_NAME: "OpenLayers.Format.Filter.v1" 

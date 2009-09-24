@@ -66,20 +66,22 @@ OpenLayers.Layer = OpenLayers.Class({
      *     properties of this event depends on exactly what happened.
      *
      * All event objects have at least the following properties:
-     *  - *object* {Object} A reference to layer.events.object.
-     *  - *element* {DOMElement} A reference to layer.events.element.
+     * object - {Object} A reference to layer.events.object.
+     * element - {DOMElement} A reference to layer.events.element.
      *
      * Supported map event types:
-     *  - *loadstart* Triggered when layer loading starts.
-     *  - *loadend* Triggered when layer loading ends.
-     *  - *loadcancel* Triggered when layer loading is canceled.
-     *  - *visibilitychanged* Triggered when layer visibility is changed.
-     *  - *moveend* Triggered when layer is moved, object passed as
-     *      argument has a zoomChanged boolean property which tells that the
-     *      zoom has changed.
+     * loadstart - Triggered when layer loading starts.
+     * loadend - Triggered when layer loading ends.
+     * loadcancel - Triggered when layer loading is canceled.
+     * visibilitychanged - Triggered when layer visibility is changed.
+     * move - Triggered when layer moves (triggered with every mousemove
+     *     during a drag).
+     * moveend - Triggered when layer is done moving, object passed as
+     *     argument has a zoomChanged boolean property which tells that the
+     *     zoom has changed.
      */
     EVENT_TYPES: ["loadstart", "loadend", "loadcancel", "visibilitychanged",
-                  "moveend"],
+                  "move", "moveend"],
         
     /**
      * APIProperty: events
@@ -319,6 +321,7 @@ OpenLayers.Layer = OpenLayers.Class({
             this.div = OpenLayers.Util.createDiv(this.id);
             this.div.style.width = "100%";
             this.div.style.height = "100%";
+            this.div.dir = "ltr";
 
             this.events = new OpenLayers.Events(this, this.div, 
                                                 this.EVENT_TYPES);
@@ -455,7 +458,10 @@ OpenLayers.Layer = OpenLayers.Class({
             var extent = this.getExtent();
 
             if (extent && this.inRange && this.visibility) {
-                this.moveTo(extent, true, false);
+                var zoomChanged = true;
+                this.moveTo(extent, zoomChanged, false);
+                this.events.triggerEvent("moveend",
+                    {"zoomChanged": zoomChanged});
                 redrawn = true;
             }
         }
@@ -521,6 +527,14 @@ OpenLayers.Layer = OpenLayers.Class({
             // deal with gutters
             this.setTileSize();
         }
+    },
+    
+    /**
+     * Method: afterAdd
+     * Called at the end of the map.addLayer sequence.  At this point, the map
+     *     will have a base layer.  To be overridden by subclasses.
+     */
+    afterAdd: function() {
     },
     
     /**
@@ -632,7 +646,7 @@ OpenLayers.Layer = OpenLayers.Class({
     },
 
     /**
-     * Method: calculateInRange
+     * APIMethod: calculateInRange
      * 
      * Returns:
      * {Boolean} The layer is displayable at the current map's current
@@ -950,7 +964,7 @@ OpenLayers.Layer = OpenLayers.Class({
         if(this.map.fractionalZoom) {
             var low = Math.floor(zoom);
             var high = Math.ceil(zoom);
-            resolution = this.resolutions[high] +
+            resolution = this.resolutions[low] -
                 ((zoom-low) * (this.resolutions[low]-this.resolutions[high]));
         } else {
             resolution = this.resolutions[Math.round(zoom)];
@@ -998,7 +1012,7 @@ OpenLayers.Layer = OpenLayers.Class({
             }
             var dRes = highRes - lowRes;
             if(dRes > 0) {
-                zoom = lowZoom + ((resolution - lowRes) / dRes);
+                zoom = lowZoom + ((highRes - resolution) / dRes);
             } else {
                 zoom = lowZoom;
             }

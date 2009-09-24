@@ -126,6 +126,11 @@ OpenLayers.Format.JSON = OpenLayers.Class(OpenLayers.Format, {
                     }
                     object = walk('', object);
                 }
+
+                if(this.keepData) {
+                    this.data = object;
+                }
+
                 return object;
             }
         } catch(e) {
@@ -152,7 +157,11 @@ OpenLayers.Format.JSON = OpenLayers.Class(OpenLayers.Format, {
         var json = null;
         var type = typeof value;
         if(this.serialize[type]) {
-            json = this.serialize[type].apply(this, [value]);
+            try {
+                json = this.serialize[type].apply(this, [value]);
+            } catch(err) {
+                OpenLayers.Console.error("Trouble serializing: " + err);
+            }
         }
         return json;
     },

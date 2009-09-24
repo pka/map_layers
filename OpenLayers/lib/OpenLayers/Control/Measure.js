@@ -28,10 +28,10 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
      *     properties of this event depends on exactly what happened.
      *
      * Supported control event types (in addition to those from <OpenLayers.Control>):
-     *  - *measure* Triggered when a measurement sketch is complete.  Listeners
+     * measure - Triggered when a measurement sketch is complete.  Listeners
      *      will receive an event with measure, units, order, and geometry
      *      properties.
-     *  - *measurepartial* Triggered when a new point is added to the
+     * measurepartial - Triggered when a new point is added to the
      *      measurement sketch.  Listeners receive an event with measure,
      *      units, order, and geometry.
      */
@@ -57,6 +57,14 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
     displaySystem: 'metric',
     
     /**
+     * Property: geodesic
+     * {Boolean} Calculate geodesic metrics instead of planar metrics.  This
+     *     requires that geometries can be transformed into Geographic/WGS84
+     *     (if that is not already the map projection).  Default is false.
+     */
+    geodesic: false,
+    
+    /**
      * Property: displaySystemUnits
      * {Object} Units for various measurement systems.  Values are arrays
      *     of unit abbreviations (from OpenLayers.INCHES_PER_UNIT) in decreasing
@@ -67,6 +75,32 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
         english: ['mi', 'ft', 'in'],
         metric: ['km', 'm']
     },
+
+    /**
+     * Property: delay
+     * {Number} Number of milliseconds between clicks before the event is
+     *     considered a double-click.  The "measurepartial" event will not
+     *     be triggered if the sketch is completed within this time.  This
+     *     is required for IE where creating a browser reflow (if a listener
+     *     is modifying the DOM by displaying the measurement values) messes
+     *     with the dblclick listener in the sketch handler.
+     */
+    partialDelay: 300,
+
+    /**
+     * Property: delayedTrigger
+     * {Number} Timeout id of trigger for measurepartial.
+     */
+    delayedTrigger: null,
+    
+    /**
+     * APIProperty: persist
+     * {Boolean} Keep the temporary measurement sketch drawn after the
+     *     measurement is complete.  The geometry will persist until a new
+     *     measurement is started, the control is deactivated, or <cancel> is
+     *     called.
+     */
+    persist: false,
 
     /**
      * Constructor: OpenLayers.Control.Measure
@@ -86,7 +120,22 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
             {done: this.measureComplete, point: this.measurePartial},
             this.callbacks
         );
+
+        // let the handler options override, so old code that passes 'persist' 
+        // directly to the handler does not need an update
+        this.handlerOptions = OpenLayers.Util.extend(
+            {persist: this.persist}, this.handlerOptions
+        );
         this.handler = new handler(this, this.callbacks, this.handlerOptions);
+    },
+    
+    /**
+     * APIMethod: cancel
+     * Stop the control from measuring.  If <persist> is true, the temporary
+     *     sketch will be erased.
+     */
+    cancel: function() {
+        this.handler.cancel();
     },
     
     /**
@@ -115,6 +164,9 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
      * geometry - {<OpenLayers.Geometry>}
      */
     measureComplete: function(geometry) {
+        if(this.delayedTrigger) {
+            window.clearTimeout(this.delayedTrigger);
+        }
         this.measure(geometry, "measure");
     },
     
@@ -127,7 +179,12 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
      * geometry - {<OpenLayers.Geometry>} The sketch geometry.
      */
     measurePartial: function(point, geometry) {
-        this.measure(geometry, "measurepartial");
+        this.delayedTrigger = window.setTimeout(
+            OpenLayers.Function.bind(function() {
+                this.measure(geometry, "measurepartial");
+            }, this),
+            this.partialDelay
+        );
     },
 
     /**
@@ -189,10 +246,17 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
      * {Float} The geometry area in the given units.
      */
     getArea: function(geometry, units) {
-        var area = geometry.getArea();
+        var area, geomUnits;
+        if(this.geodesic) {
+            area = geometry.getGeodesicArea(this.map.getProjectionObject());
+            geomUnits = "m";
+        } else {
+            area = geometry.getArea();
+            geomUnits = this.map.getUnits();
+        }
         var inPerDisplayUnit = OpenLayers.INCHES_PER_UNIT[units];
         if(inPerDisplayUnit) {
-            var inPerMapUnit = OpenLayers.INCHES_PER_UNIT[this.map.getUnits()];
+            var inPerMapUnit = OpenLayers.INCHES_PER_UNIT[geomUnits];
             area *= Math.pow((inPerMapUnit / inPerDisplayUnit), 2);
         }
         return area;
@@ -233,10 +297,17 @@ OpenLayers.Control.Measure = OpenLayers.Class(OpenLayers.Control, {
      * {Float} The geometry length in the given units.
      */
     getLength: function(geometry, units) {
-        var length = geometry.getLength();
+        var length, geomUnits;
+        if(this.geodesic) {
+            length = geometry.getGeodesicLength(this.map.getProjectionObject());
+            geomUnits = "m";
+        } else {
+            length = geometry.getLength();
+            geomUnits = this.map.getUnits();
+        }
         var inPerDisplayUnit = OpenLayers.INCHES_PER_UNIT[units];
         if(inPerDisplayUnit) {
-            var inPerMapUnit = OpenLayers.INCHES_PER_UNIT[this.map.getUnits()];
+            var inPerMapUnit = OpenLayers.INCHES_PER_UNIT[geomUnits];
             length *= (inPerMapUnit / inPerDisplayUnit);
         }
         return length;

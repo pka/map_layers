@@ -4,6 +4,7 @@
 
 /**
  * @requires OpenLayers/Layer/Vector.js
+ * @requires OpenLayers/Console.js
  */
 
 /**

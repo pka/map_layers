@@ -5,6 +5,7 @@
 /**
  * @requires OpenLayers/Layer/Vector.js
  * @requires OpenLayers/Request/XMLHttpRequest.js
+ * @requires OpenLayers/Console.js
  */
 
 /**
@@ -90,7 +91,6 @@ OpenLayers.Layer.GML = OpenLayers.Class(OpenLayers.Layer.Vector, {
         // loaded after the GML is paited.
         // See http://trac.openlayers.org/ticket/404
         if(this.visibility && !this.loaded){
-            this.events.triggerEvent("loadstart");
             this.loadGML();
         }
     },
@@ -100,6 +100,7 @@ OpenLayers.Layer.GML = OpenLayers.Class(OpenLayers.Layer.Vector, {
      */
     loadGML: function() {
         if (!this.loaded) {
+            this.events.triggerEvent("loadstart");
             OpenLayers.Request.GET({
                 url: this.url,
                 success: this.requestSuccess,
@@ -121,7 +122,6 @@ OpenLayers.Layer.GML = OpenLayers.Class(OpenLayers.Layer.Vector, {
         this.url = url;
         this.destroyFeatures();
         this.loaded = false;
-        this.events.triggerEvent("loadstart");
         this.loadGML();
     },
     

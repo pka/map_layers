@@ -153,6 +153,15 @@ OpenLayers.Popup = OpenLayers.Class({
     padding: 0,
 
     /** 
+     * Property: disableFirefoxOverflowHack
+     * {Boolean} The hack for overflow in Firefox causes all elements 
+     *     to be re-drawn, which causes Flash elements to be 
+     *     re-initialized, which is troublesome.
+     *     With this property the hack can be disabled.
+     */
+    disableFirefoxOverflowHack: false,
+
+    /**
      * Method: fixPadding
      * To be removed in 3.0, this function merely helps us to deal with the 
      *     case where the user may have set an integer value for padding, 
@@ -173,6 +182,27 @@ OpenLayers.Popup = OpenLayers.Class({
      *     Default is false.
      */
     panMapIfOutOfView: false,
+    
+    /**
+     * APIProperty: keepInMap 
+     * {Boolean} If panMapIfOutOfView is false, and this property is true, 
+     *     contrain the popup such that it always fits in the available map
+     *     space. By default, this is not set on the base class. If you are
+     *     creating popups that are near map edges and not allowing pannning,
+     *     and especially if you have a popup which has a
+     *     fixedRelativePosition, setting this to false may be a smart thing to
+     *     do. Subclasses may want to override this setting.
+     *   
+     *     Default is false.
+     */
+    keepInMap: false,
+
+    /**
+     * APIProperty: closeOnMove
+     * {Boolean} When map pans, close the popup.
+     *     Default is false.
+     */
+    closeOnMove: false,
     
     /** 
      * Property: map 
@@ -253,6 +283,10 @@ OpenLayers.Popup = OpenLayers.Class({
         this.opacity = null;
         this.border = null;
         
+        if (this.closeOnMove && this.map) {
+            this.map.events.unregister("movestart", this, this.hide);
+        }
+
         this.events.destroy();
         this.events = null;
         
@@ -294,9 +328,15 @@ OpenLayers.Popup = OpenLayers.Class({
                 px = this.map.getLayerPxFromLonLat(this.lonlat);
             }
         }
+
+        // this assumes that this.map already exists, which is okay because 
+        // this.draw is only called once the popup has been added to the map.
+        if (this.closeOnMove) {
+            this.map.events.register("movestart", this, this.hide);
+        }
         
         //listen to movestart, moveend to disable overflow (FF bug)
-        if (OpenLayers.Util.getBrowserName() == 'firefox') {
+        if (!this.disableFirefoxOverflowHack && OpenLayers.Util.getBrowserName() == 'firefox') {
             this.map.events.register("movestart", this, function() {
                 var style = document.defaultView.getComputedStyle(
                     this.contentDiv, null
@@ -466,9 +506,15 @@ OpenLayers.Popup = OpenLayers.Class({
         // contents into a fake contentDiv (for the CSS) and then measuring it
         var preparedHTML = "<div class='" + this.contentDisplayClass+ "'>" + 
             this.contentDiv.innerHTML + 
-            "<div>";
+            "</div>";
+ 
+        var containerElement = (this.map) ? this.map.layerContainerDiv
+        								  : document.body;
         var realSize = OpenLayers.Util.getRenderedDimensions(
-            preparedHTML, null, { displayClass: this.displayClass }
+            preparedHTML, null,	{
+                displayClass: this.displayClass,
+                containerElement: containerElement
+            }
         );
 
         // is the "real" size of the div is safe to display in our map?
@@ -497,8 +543,10 @@ OpenLayers.Popup = OpenLayers.Class({
                 //content is clipped in only one direction, so we need to 
                 // run getRenderedDimensions() again with a fixed dimension
                 var clippedSize = OpenLayers.Util.getRenderedDimensions(
-                    preparedHTML, fixedSize, 
-                    { displayClass: this.contentDisplayClass }
+                    preparedHTML, fixedSize, {
+                        displayClass: this.contentDisplayClass,
+                        containerElement: containerElement
+                    }
                 );
                 
                 //if the clipped size is still the same as the safeSize, 
@@ -718,22 +766,44 @@ OpenLayers.Popup = OpenLayers.Class({
         // is bigger than the map's viewport.
         //
         if (this.map && this.map.size) {
-
-            // Note that there *was* a reference to a
-            // 'OpenLayers.Popup.SCROLL_BAR_WIDTH' constant here, with special
-            // tolerance for it and everything... but it was never defined in
-            // the first place, so I don't know what to think.
+            
+            var extraX = 0, extraY = 0;
+            if (this.keepInMap && !this.panMapIfOutOfView) {
+                var px = this.map.getPixelFromLonLat(this.lonlat);
+                switch (this.relativePosition) {
+                    case "tr":
+                        extraX = px.x;
+                        extraY = this.map.size.h - px.y;
+                        break;
+                    case "tl":
+                        extraX = this.map.size.w - px.x;
+                        extraY = this.map.size.h - px.y;
+                        break;
+                    case "bl":
+                        extraX = this.map.size.w - px.x;
+                        extraY = px.y;
+                        break;
+                    case "br":
+                        extraX = px.x;
+                        extraY = px.y;
+                        break;
+                    default:    
+                        extraX = px.x;
+                        extraY = this.map.size.h - px.y;
+                        break;
+                }
+            }    
           
             var maxY = this.map.size.h - 
                 this.map.paddingForPopups.top - 
                 this.map.paddingForPopups.bottom - 
-                hPadding;
-    
+                hPadding - extraY;
+            
             var maxX = this.map.size.w - 
                 this.map.paddingForPopups.left - 
                 this.map.paddingForPopups.right - 
-                wPadding;
-    
+                wPadding - extraX;
+            
             safeContentSize.w = Math.min(safeContentSize.w, maxX);
             safeContentSize.h = Math.min(safeContentSize.h, maxY);
         }
@@ -760,10 +830,13 @@ OpenLayers.Popup = OpenLayers.Class({
         //use cached value if we have it
         var contentDivPadding = this._contentDivPadding;
         if (!contentDivPadding) {
-            //make the div invisible and add it to the page        
-            this.div.style.display = "none";
-            document.body.appendChild(this.div);
-    
+
+        	if (this.div.parentNode == null) {
+	        	//make the div invisible and add it to the page        
+	            this.div.style.display = "none";
+	            document.body.appendChild(this.div);
+	    	}
+	            
             //read the padding settings from css, put them in an OL.Bounds        
             contentDivPadding = new OpenLayers.Bounds(
                 OpenLayers.Element.getStyle(this.contentDiv, "padding-left"),
@@ -774,10 +847,12 @@ OpenLayers.Popup = OpenLayers.Class({
     
             //cache the value
             this._contentDivPadding = contentDivPadding;
-    
-            //remove the div from the page and make it visible again
-            document.body.removeChild(this.div);
-            this.div.style.display = "";
+
+            if (this.div.parentNode == document.body) {
+	            //remove the div from the page and make it visible again
+	            document.body.removeChild(this.div);
+	            this.div.style.display = "";
+            }
         }
         return contentDivPadding;
     },

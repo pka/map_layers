@@ -7,8 +7,20 @@ module Format
 class OSM < JsClass; end
 end
 module Format
+class ArcXML < JsClass; end
+end
+class Request < JsClass; end
+class Response < JsClass; end
+module Format
+class WMSDescribeLayer < JsClass; end
+end
+module Format
 class KML < JsClass; end
 end
+module Format
+class WFST < JsClass; end
+end
+class DEFAULTS < JsClass; end
 module Format
 class JSON < JsClass; end
 end
@@ -22,8 +34,19 @@ module Format
 class GML < JsClass; end
 end
 module Format
+class WFSCapabilities < JsClass; end
+end
+module Format
+class WFSDescribeFeatureType < JsClass; end
+end
+module Format
 class XML < JsClass; end
 end
+class CONTENT_TYPE < JsClass; end
+module Format
+class WMSCapabilities < JsClass; end
+end
+class Features < JsClass; end
 module Format
 class GeoRSS < JsClass; end
 end
@@ -45,6 +68,9 @@ class WKT < JsClass; end
 end
 module Format
 class GeoJSON < JsClass; end
+end
+module Format
+class WMSGetFeatureInfo < JsClass; end
 end
 module OpenLayers
 class Layer < JsClass; end
@@ -110,6 +136,9 @@ module OpenLayers
 class Filter < JsClass; end
 end
 module Strategy
+class Save < JsClass; end
+end
+module Strategy
 class Paging < JsClass; end
 end
 module Strategy
@@ -155,6 +184,12 @@ module Layer
 class VirtualEarth < JsClass; end
 end
 module Layer
+class ArcIMS < JsClass; end
+end
+module Layer
+class ArcGIS93Rest < JsClass; end
+end
+module Layer
 class GML < JsClass; end
 end
 module Layer
@@ -187,6 +222,12 @@ class MultiMap < JsClass; end
 end
 module Layer
 class HTTPRequest < JsClass; end
+end
+module Layer
+class XYZ < JsClass; end
+end
+module Layer
+class OSM < JsClass; end
 end
 module Layer
 class TileCache < JsClass; end
@@ -222,6 +263,7 @@ end
 module Layer
 class TMS < JsClass; end
 end
+class RootContainer < JsClass; end
 module OpenLayers
 class String < JsClass; end
 end
@@ -262,6 +304,10 @@ module Protocol
 class HTTP < JsClass; end
 end
 class Gears < JsClass; end
+module Protocol
+class WFS < JsClass; end
+end
+class DEFAULTS < JsClass; end
 module Tile
 class Image < JsClass; end
 end
@@ -281,6 +327,8 @@ end
 class BBOX < JsClass; end
 class INTERSECTS < JsClass; end
 class DWITHIN < JsClass; end
+class WITHIN < JsClass; end
+class CONTAINS < JsClass; end
 module Filter
 class Logical < JsClass; end
 end
@@ -308,6 +356,9 @@ module Control
 class DrawFeature < JsClass; end
 end
 module Control
+class Snapping < JsClass; end
+end
+module Control
 class ScaleLine < JsClass; end
 end
 module Control
@@ -330,6 +381,9 @@ class SelectFeature < JsClass; end
 end
 module Control
 class OverviewMap < JsClass; end
+end
+module Control
+class Split < JsClass; end
 end
 module Control
 class PanZoomBar < JsClass; end
@@ -391,7 +445,13 @@ module Control
 class MouseToolbar < JsClass; end
 end
 module Control
+class GetFeature < JsClass; end
+end
+module Control
 class ArgParser < JsClass; end
+end
+module Control
+class WMSGetFeatureInfo < JsClass; end
 end
 module Control
 class EditingToolbar < JsClass; end
@@ -462,6 +522,7 @@ end
 module Renderer
 class Canvas < JsClass; end
 end
+class LABEL_ALIGN < JsClass; end
 module OpenLayers
 class ElementsIndexer < JsClass; end
 end
@@ -474,9 +535,12 @@ end
 module Renderer
 class VML < JsClass; end
 end
+class LABEL_SHIFT < JsClass; end
 module Renderer
 class SVG < JsClass; end
 end
+class LABEL_ALIGN < JsClass; end
+class LABEL_VSHIFT < JsClass; end
 module OpenLayers
 class Util < JsClass; end
 end
@@ -485,6 +549,9 @@ class ImgPath < JsClass; end
 end
 module Util
 class Try < JsClass; end
+end
+module Util
+class DEFAULT_PRECISION < JsClass; end
 end
 module OpenLayers
 class Strategy < JsClass; end

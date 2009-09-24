@@ -53,6 +53,17 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
      * {Boolean} Whether or not to handle right clicks. Default is false.
      */
     handleRightClicks: false,
+
+    /**
+     * APIProperty: zoomBoxKeyMask
+     * {Integer} <OpenLayers.Handler> key code of the key, which has to be
+     *    pressed, while drawing the zoom box with the mouse on the screen. 
+     *    You should probably set handleRightClicks to true if you use this
+     *    with MOD_CTRL, to disable the context menu for machines which use
+     *    CTRL-Click as a right click.
+     * Default: <OpenLayers.Handler.MOD_SHIFT
+     */
+    zoomBoxKeyMask: OpenLayers.Handler.MOD_SHIFT,
     
     /**
      * Constructor: OpenLayers.Control.Navigation
@@ -118,7 +129,7 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
     draw: function() {
         // disable right mouse context menu for support of right click events
         if (this.handleRightClicks) {
-            this.map.div.oncontextmenu = function () { return false;};
+            this.map.viewPortDiv.oncontextmenu = function () { return false;};
         }
 
         var clickCallbacks = { 
@@ -136,7 +147,7 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
             OpenLayers.Util.extend({map: this.map}, this.dragPanOptions)
         );
         this.zoomBox = new OpenLayers.Control.ZoomBox(
-                    {map: this.map, keyMask: OpenLayers.Handler.MOD_SHIFT});
+                    {map: this.map, keyMask: this.zoomBoxKeyMask});
         this.dragPan.draw();
         this.zoomBox.draw();
         this.handlers.wheel = new OpenLayers.Handler.MouseWheel(
@@ -157,7 +168,7 @@ OpenLayers.Control.Navigation = OpenLayers.Class(OpenLayers.Control, {
     },
 
     /**
-     * Method: defaultRightDblClick 
+     * Method: defaultDblRightClick 
      * 
      * Parameters:
      * evt - {Event} 

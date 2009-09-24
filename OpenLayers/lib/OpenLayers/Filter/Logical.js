@@ -25,7 +25,7 @@ OpenLayers.Filter.Logical = OpenLayers.Class(OpenLayers.Filter, {
     /**
      * APIProperty: type
      * {String} type of logical operator. Available types are:
-     * - OpenLayers.Filter.Locical.AND = "&&";
+     * - OpenLayers.Filter.Logical.AND = "&&";
      * - OpenLayers.Filter.Logical.OR  = "||";
      * - OpenLayers.Filter.Logical.NOT = "!";
      */
@@ -88,6 +88,24 @@ OpenLayers.Filter.Logical = OpenLayers.Class(OpenLayers.Filter, {
             case OpenLayers.Filter.Logical.NOT:
                 return (!this.filters[0].evaluate(context));
         }
+    },
+    
+    /**
+     * APIMethod: clone
+     * Clones this filter.
+     * 
+     * Returns:
+     * {<OpenLayers.Filter.Logical>} Clone of this filter.
+     */
+    clone: function() {
+        var filters = [];        
+        for(var i=0, len=this.filters.length; i<len; ++i) {
+            filters.push(this.filters[i].clone());
+        }
+        return new OpenLayers.Filter.Logical({
+            type: this.type,
+            filters: filters
+        });
     },
     
     CLASS_NAME: "OpenLayers.Filter.Logical"

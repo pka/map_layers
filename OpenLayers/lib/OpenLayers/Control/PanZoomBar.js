@@ -9,6 +9,10 @@
 
 /**
  * Class: OpenLayers.Control.PanZoomBar
+ * The PanZoomBar is a visible control composed of a
+ * <OpenLayers.Control.PanPanel> and a <OpenLayers.Control.ZoomBar>. 
+ * By default it is displayed in the upper left corner of the map as 4
+ * directional arrows above a vertical slider.
  *
  * Inherits from:
  *  - <OpenLayers.Control.PanZoom>
@@ -49,7 +53,7 @@ OpenLayers.Control.PanZoomBar = OpenLayers.Class(OpenLayers.Control.PanZoom, {
     divEvents: null,
 
     /** 
-     * Property: zoomWorldIcon
+     * APIProperty: zoomWorldIcon
      * {Boolean}
      */
     zoomWorldIcon: false,
@@ -66,20 +70,9 @@ OpenLayers.Control.PanZoomBar = OpenLayers.Class(OpenLayers.Control.PanZoom, {
      */
     destroy: function() {
 
-        this.div.removeChild(this.slider);
-        this.slider = null;
-
-        this.sliderEvents.destroy();
-        this.sliderEvents = null;
-        
-        this.div.removeChild(this.zoombarDiv);
-        this.zoomBarDiv = null;
-
-        this.divEvents.destroy();
-        this.divEvents = null;
+        this._removeZoomBar();
 
         this.map.events.un({
-            "zoomend": this.moveZoomBar,
             "changebaselayer": this.redraw,
             scope: this
         });
@@ -104,7 +97,8 @@ OpenLayers.Control.PanZoomBar = OpenLayers.Class(OpenLayers.Control.PanZoom, {
      */
     redraw: function() {
         if (this.div != null) {
-            this.div.innerHTML = "";
+            this.removeButtons();
+            this._removeZoomBar();
         }  
         this.draw();
     },
@@ -219,7 +213,36 @@ OpenLayers.Control.PanZoomBar = OpenLayers.Class(OpenLayers.Control.PanZoom, {
         return centered; 
     },
     
-    /*
+    /**
+     * Method: _removeZoomBar
+     */
+    _removeZoomBar: function() {
+        this.sliderEvents.un({
+            "mousedown": this.zoomBarDown,
+            "mousemove": this.zoomBarDrag,
+            "mouseup": this.zoomBarUp,
+            "dblclick": this.doubleClick,
+            "click": this.doubleClick
+        });
+        this.sliderEvents.destroy();
+
+        this.divEvents.un({
+            "mousedown": this.divClick,
+            "mousemove": this.passEventToSlider,
+            "dblclick": this.doubleClick,
+            "click": this.doubleClick
+        });
+        this.divEvents.destroy();
+        
+        this.div.removeChild(this.zoombarDiv);
+        this.zoombarDiv = null;
+        this.div.removeChild(this.slider);
+        this.slider = null;
+        
+        this.map.events.unregister("zoomend", this, this.moveZoomBar);
+    },
+    
+    /**
      * Method: passEventToSlider
      * This function is used to pass events that happen on the div, or the map,
      * through to the slider, which then does its moving thing.
@@ -231,7 +254,7 @@ OpenLayers.Control.PanZoomBar = OpenLayers.Class(OpenLayers.Control.PanZoom, {
         this.sliderEvents.handleBrowserEvent(evt);
     },
     
-    /*
+    /**
      * Method: divClick
      * Picks up on clicks directly on the zoombar div
      *           and sets the zoom level appropriately.
@@ -294,8 +317,8 @@ OpenLayers.Control.PanZoomBar = OpenLayers.Class(OpenLayers.Control.PanZoom, {
                 (evt.clientY - offsets[1]) < parseInt(this.zoombarDiv.style.height) - 2) {
                 var newTop = parseInt(this.slider.style.top) - deltaY;
                 this.slider.style.top = newTop+"px";
+                this.mouseDragStart = evt.xy.clone();
             }
-            this.mouseDragStart = evt.xy.clone();
             OpenLayers.Event.stop(evt);
         }
     },

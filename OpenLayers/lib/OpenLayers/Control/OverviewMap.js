@@ -10,8 +10,10 @@
 
 /**
  * Class: OpenLayers.Control.OverviewMap
- * Create an overview map to display the extent of your main map and provide
- * additional navigation control.  Create a new overview map with the
+ * The OverMap control creates a small overview map, useful to display the 
+ * extent of a zoomed map and your main map and provide additional 
+ * navigation options to the User.  By default the overview map is drawn in
+ * the lower right corner of the main map. Create a new overview map with the
  * <OpenLayers.Control.OverviewMap> constructor.
  *
  * Inerits from:
@@ -78,24 +80,33 @@ OpenLayers.Control.OverviewMap = OpenLayers.Class(OpenLayers.Control, {
     /**
      * APIProperty: minRatio
      * {Float} The ratio of the overview map resolution to the main map
-     * resolution at which to zoom farther out on the overview map.
+     *     resolution at which to zoom farther out on the overview map.
      */
     minRatio: 8,
 
     /**
      * APIProperty: maxRatio
      * {Float} The ratio of the overview map resolution to the main map
-     * resolution at which to zoom farther in on the overview map.
+     *     resolution at which to zoom farther in on the overview map.
      */
     maxRatio: 32,
     
     /**
      * APIProperty: mapOptions
      * {Object} An object containing any non-default properties to be sent to
-     * the overview map's map constructor.  These should include any non-default
-     * options that the main map was constructed with.
+     *     the overview map's map constructor.  These should include any
+     *     non-default options that the main map was constructed with.
      */
     mapOptions: null,
+
+    /**
+     * APIProperty: autoPan
+     * {Boolean} Always pan the overview map, so the extent marker remains in
+     *     the center.  Default is false.  If true, when you drag the extent
+     *     marker, the overview map will update itself so the marker returns
+     *     to the center.
+     */
+    autoPan: false,
     
     /**
      * Property: handlers
@@ -387,7 +398,7 @@ OpenLayers.Control.OverviewMap = OpenLayers.Class(OpenLayers.Control, {
             this.createMap();
         }
         
-        if(!this.isSuitableOverview()) {
+        if(this.autoPan || !this.isSuitableOverview()) {
             this.updateOverview();
         }
         

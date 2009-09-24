@@ -10,6 +10,7 @@
  * @requires OpenLayers/BaseTypes/Bounds.js
  * @requires OpenLayers/BaseTypes/Element.js
  * @requires OpenLayers/Lang/en.js
+ * @requires OpenLayers/Console.js
  */
  
 /** 
@@ -66,7 +67,7 @@ OpenLayers.String = {
      *     trailing spaces removed.
      */
     trim: function(str) {
-        return str.replace(/^\s*(.*?)\s*$/, "$1");    
+        return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
     },
     
     /**
@@ -116,25 +117,52 @@ OpenLayers.String = {
         if(!context) {
             context = window;
         }
-        var tokens = template.split("${");
-        var item, last, replacement;
-        for(var i=1, len=tokens.length; i<len; i++) {
-            item = tokens[i];
-            last = item.indexOf("}"); 
-            if(last > 0) {
-                replacement = context[item.substring(0, last)];
-                if(typeof replacement == "function") {
-                    replacement = args ?
-                        replacement.apply(null, args) :
-                        replacement();
+
+        // Example matching: 
+        // str   = ${foo.bar}
+        // match = foo.bar
+        var replacer = function(str, match) {
+            var replacement;
+
+            // Loop through all subs. Example: ${a.b.c}
+            // 0 -> replacement = context[a];
+            // 1 -> replacement = context[a][b];
+            // 2 -> replacement = context[a][b][c];
+            var subs = match.split(/\.+/);
+            for (var i=0; i< subs.length; i++) {
+                if (i == 0) {
+                    replacement = context;
                 }
-                tokens[i] = replacement + item.substring(++last); 
-            } else {
-                tokens[i] = "${" + item;
+
+                replacement = replacement[subs[i]];
             }
-        }
-        return tokens.join("");
+
+            if(typeof replacement == "function") {
+                replacement = args ?
+                    replacement.apply(null, args) :
+                    replacement();
+            }
+
+            // If replacement is undefined, return the string 'undefined'.
+            // This is a workaround for a bugs in browsers not properly 
+            // dealing with non-participating groups in regular expressions:
+            // http://blog.stevenlevithan.com/archives/npcg-javascript
+            if (typeof replacement == 'undefined') {
+                return 'undefined';
+            } else {
+                return replacement; 
+            }
+        };
+
+        return template.replace(OpenLayers.String.tokenRegEx, replacer);
     },
+
+    /**
+     * Property: OpenLayers.String.tokenRegEx
+     * Used to find tokens in a string.
+     * Examples: ${a}, ${a.b.c}, ${a-b}, ${5}
+     */
+    tokenRegEx:  /\$\{([\w.]+?)\}/g,
     
     /**
      * Property: OpenLayers.String.numberRegEx
@@ -159,6 +187,18 @@ OpenLayers.String = {
      */
     isNumeric: function(value) {
         return OpenLayers.String.numberRegEx.test(value);
+    },
+    
+    /**
+     * APIFunction: numericIf
+     * Converts a string that appears to be a numeric value into a number.
+     * 
+     * Returns
+     * {Number|String} a Number if the passed value is a number, a String
+     *     otherwise. 
+     */
+    numericIf: function(value) {
+        return OpenLayers.String.isNumeric(value) ? parseFloat(value) : value;
     }
 
 };

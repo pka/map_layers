@@ -16,12 +16,6 @@
 OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
 
     /**
-     * Property: root
-     * {DOMElement} root element of canvas.
-     */
-    root: null,
-
-    /**
      * Property: canvas
      * {Canvas} The canvas context object.
      */
@@ -135,7 +129,9 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
           'strokeOpacity': 1
         }, style);  
         this.features[feature.id] = [feature, style]; 
-        this.geometryMap[feature.geometry.id] = feature.id; 
+        if (feature.geometry) { 
+            this.geometryMap[feature.geometry.id] = feature.id;
+        }    
         this.redraw();
     },
 
@@ -148,7 +144,6 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
      * Parameters:
      * geometry - {<OpenLayers.Geometry>} 
      * style - {Object} 
-     * featureId - {<String>} 
      */
     drawGeometry: function(geometry, style) {
         var className = geometry.CLASS_NAME;
@@ -190,6 +185,10 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
     drawExternalGraphic: function(pt, style) {
        var img = new Image();
        img.src = style.externalGraphic;
+       
+       if(style.graphicTitle) {
+           img.title=style.graphicTitle;           
+       }
 
        var width = style.graphicWidth || style.graphicHeight;
        var height = style.graphicHeight || style.graphicWidth;
@@ -245,21 +244,27 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
      * style    - {Object}
      */ 
     drawPoint: function(geometry, style) {
-        var pt = this.getLocalXY(geometry);
-        
-        if (style.externalGraphic) {
-            this.drawExternalGraphic(pt, style);
-        } else {
-            this.setCanvasStyle("fill", style);
-            this.canvas.beginPath();
-            this.canvas.arc(pt[0], pt[1], 6, 0, Math.PI*2, true);
-            this.canvas.fill();
+        if(style.graphic !== false) {
+            var pt = this.getLocalXY(geometry);
             
-            this.setCanvasStyle("stroke", style);
-            this.canvas.beginPath();
-            this.canvas.arc(pt[0], pt[1], 6, 0, Math.PI*2, true);
-            this.canvas.stroke();
-            this.setCanvasStyle("reset");
+            if (style.externalGraphic) {
+                this.drawExternalGraphic(pt, style);
+            } else {
+                if(style.fill !== false) {
+                    this.setCanvasStyle("fill", style);
+                    this.canvas.beginPath();
+                    this.canvas.arc(pt[0], pt[1], 6, 0, Math.PI*2, true);
+                    this.canvas.fill();
+                }
+                
+                if(style.stroke !== false) {
+                    this.setCanvasStyle("stroke", style);
+                    this.canvas.beginPath();
+                    this.canvas.arc(pt[0], pt[1], 6, 0, Math.PI*2, true);
+                    this.canvas.stroke();
+                    this.setCanvasStyle("reset");
+                }
+            }
         }
     },
 
@@ -272,15 +277,17 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
      * style    - {Object}
      */ 
     drawLineString: function(geometry, style) {
-        this.setCanvasStyle("stroke", style);
-        this.canvas.beginPath();
-        var start = this.getLocalXY(geometry.components[0]);
-        this.canvas.moveTo(start[0], start[1]);
-        for(var i = 1; i < geometry.components.length; i++) {
-            var pt = this.getLocalXY(geometry.components[i]);
-            this.canvas.lineTo(pt[0], pt[1]);
+        if(style.stroke !== false) {
+            this.setCanvasStyle("stroke", style);
+            this.canvas.beginPath();
+            var start = this.getLocalXY(geometry.components[0]);
+            this.canvas.moveTo(start[0], start[1]);
+            for(var i = 1; i < geometry.components.length; i++) {
+                var pt = this.getLocalXY(geometry.components[i]);
+                this.canvas.lineTo(pt[0], pt[1]);
+            }
+            this.canvas.stroke();
         }
-        this.canvas.stroke();
         this.setCanvasStyle("reset");
     },    
     
@@ -293,26 +300,30 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
      * style    - {Object}
      */ 
     drawLinearRing: function(geometry, style) {
-        this.setCanvasStyle("fill", style);
-        this.canvas.beginPath();
-        var start = this.getLocalXY(geometry.components[0]);
-        this.canvas.moveTo(start[0], start[1]);
-        for(var i = 1; i < geometry.components.length - 1 ; i++) {
-            var pt = this.getLocalXY(geometry.components[i]);
-            this.canvas.lineTo(pt[0], pt[1]);
+        if(style.fill !== false) {
+            this.setCanvasStyle("fill", style);
+            this.canvas.beginPath();
+            var start = this.getLocalXY(geometry.components[0]);
+            this.canvas.moveTo(start[0], start[1]);
+            for(var i = 1; i < geometry.components.length - 1 ; i++) {
+                var pt = this.getLocalXY(geometry.components[i]);
+                this.canvas.lineTo(pt[0], pt[1]);
+            }
+            this.canvas.fill();
         }
-        this.canvas.fill();
         
-        var oldWidth = this.canvas.lineWidth; 
-        this.setCanvasStyle("stroke", style);
-        this.canvas.beginPath();
-        var start = this.getLocalXY(geometry.components[0]);
-        this.canvas.moveTo(start[0], start[1]);
-        for(var i = 1; i < geometry.components.length; i++) {
-            var pt = this.getLocalXY(geometry.components[i]);
-            this.canvas.lineTo(pt[0], pt[1]);
+        if(style.stroke !== false) {
+            var oldWidth = this.canvas.lineWidth; 
+            this.setCanvasStyle("stroke", style);
+            this.canvas.beginPath();
+            var start = this.getLocalXY(geometry.components[0]);
+            this.canvas.moveTo(start[0], start[1]);
+            for(var i = 1; i < geometry.components.length; i++) {
+                var pt = this.getLocalXY(geometry.components[i]);
+                this.canvas.lineTo(pt[0], pt[1]);
+            }
+            this.canvas.stroke();
         }
-        this.canvas.stroke();
         this.setCanvasStyle("reset");
     },    
     
@@ -335,6 +346,56 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
                 fillColor: '#000000'}
             ); // inner rings are 'empty'  
         }
+    },
+    
+    /**
+     * Method: drawText
+     * This method is only called by the renderer itself.
+     *
+     * Parameters:
+     * location - {<OpenLayers.Point>}
+     * style    - {Object}
+     */
+    drawText: function(location, style) {
+        style = OpenLayers.Util.extend({
+            fontColor: "#000000",
+            labelAlign: "cm"
+        }, style);
+        var pt = this.getLocalXY(location);
+        
+        this.setCanvasStyle("reset");
+        this.canvas.fillStyle = style.fontColor;
+        this.canvas.globalAlpha = 1;
+        var fontStyle = style.fontWeight + " " + style.fontSize + " " + style.fontFamily;
+        if (this.canvas.fillText) {
+            // HTML5
+            var labelAlign =
+                OpenLayers.Renderer.Canvas.LABEL_ALIGN[style.labelAlign[0]] ||
+                "middle";
+            this.canvas.font = fontStyle;
+            this.canvas.textAlign = labelAlign;
+            this.canvas.fillText(style.label, pt[0], pt[1]);
+        } else if (this.canvas.mozDrawText) {
+            // Mozilla pre-Gecko1.9.1 (<FF3.1)
+            this.canvas.mozTextStyle = fontStyle;
+            // No built-in text alignment, so we measure and adjust the position
+            var len = this.canvas.mozMeasureText(style.label);
+            switch(style.labelAlign[0]) {
+                case "l":
+                    break;
+                case "r":
+                    pt[0] -= len;
+                    break;
+                case "c":
+                default:
+                    pt[0] -= len / 2;
+            }
+            this.canvas.translate(pt[0], pt[1]);
+            
+            this.canvas.mozDrawText(style.label);
+            this.canvas.translate(-1*pt[0], -1*pt[1]);
+        }
+        this.setCanvasStyle("reset");
     },
 
     /**
@@ -417,13 +478,34 @@ OpenLayers.Renderer.Canvas = OpenLayers.Class(OpenLayers.Renderer, {
     redraw: function() {
         if (!this.locked) {
             this.clear();
+            var labelMap = [];
+            var feature, style;
             for (var id in this.features) {
                 if (!this.features.hasOwnProperty(id)) { continue; }
-                if (!this.features[id][0].geometry) { continue; }
-                this.drawGeometry(this.features[id][0].geometry, this.features[id][1]);
+                feature = this.features[id][0];
+                style = this.features[id][1];
+                if (!feature.geometry) { continue; }
+                this.drawGeometry(feature.geometry, style);
+                if(style.label) {
+                    labelMap.push([feature, style]);
+                }
+            }
+            var item;
+            for (var i=0; len=labelMap.length, i<len; ++i) {
+                item = labelMap[i];
+                this.drawText(item[0].geometry.getCentroid(), item[1]);
             }
         }    
     },
 
     CLASS_NAME: "OpenLayers.Renderer.Canvas"
 });
+
+/**
+ * Constant: OpenLayers.Renderer.Canvas.LABEL_ALIGN
+ * {Object}
+ */
+OpenLayers.Renderer.Canvas.LABEL_ALIGN = {
+    "l": "left",
+    "r": "right"
+};

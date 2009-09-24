@@ -53,7 +53,7 @@ OpenLayers.Protocol = OpenLayers.Class({
     },
     
     /**
-     * Method: read
+     * APIMethod: read
      * Construct a request for reading new features.
      *
      * Parameters:
@@ -69,7 +69,7 @@ OpenLayers.Protocol = OpenLayers.Class({
     
     
     /**
-     * Method: create
+     * APIMethod: create
      * Construct a request for writing newly created features.
      *
      * Parameters:
@@ -86,7 +86,7 @@ OpenLayers.Protocol = OpenLayers.Class({
     },
     
     /**
-     * Method: update
+     * APIMethod: update
      * Construct a request updating modified features.
      *
      * Parameters:
@@ -103,7 +103,7 @@ OpenLayers.Protocol = OpenLayers.Class({
     },
     
     /**
-     * Method: delete
+     * APIMethod: delete
      * Construct a request deleting a removed feature.
      *
      * Parameters:
@@ -119,7 +119,7 @@ OpenLayers.Protocol = OpenLayers.Class({
     },
 
     /**
-     * Method: commit
+     * APIMethod: commit
      * Go over the features and for each take action
      * based on the feature state. Possible actions are create,
      * update and delete.
@@ -138,6 +138,16 @@ OpenLayers.Protocol = OpenLayers.Class({
      * <OpenLayers.Protocol.Response> objects.
      */
     commit: function() {
+    },
+
+    /**
+     * Method: abort
+     * Abort an ongoing request.
+     *
+     * Parameters:
+     * response - {<OpenLayers.Protocol.Response>}
+     */
+    abort: function(response) {
     },
    
     CLASS_NAME: "OpenLayers.Protocol" 

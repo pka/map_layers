@@ -11,6 +11,7 @@
  * @requires OpenLayers/Geometry/MultiLineString.js
  * @requires OpenLayers/Geometry/Polygon.js
  * @requires OpenLayers/Geometry/MultiPolygon.js
+ * @requires OpenLayers/Console.js
  */
 
 /**
@@ -136,7 +137,7 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
      * node - {DOMElement} A GML feature node. 
      */
     parseFeature: function(node) {
-        // only accept on geometry per feature - look for highest "order"
+        // only accept one geometry per feature - look for highest "order"
         var order = ["MultiPolygon", "Polygon",
                      "MultiLineString", "LineString",
                      "MultiPoint", "Point", "Envelope", "Box"];
@@ -322,7 +323,7 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
             // look for <gml:posList>
             nodeList = this.getElementsByTagNameNS(node, this.gmlns, "posList");
             if(nodeList.length > 0) {
-                coordString = this.concatChildValues(nodeList[0]);
+                coordString = this.getChildValue(nodeList[0]);
                 coordString = coordString.replace(this.regExes.trimSpace, "");
                 coords = coordString.split(this.regExes.splitSpace);
                 var dim = parseInt(nodeList[0].getAttribute("dimension"));
@@ -345,7 +346,7 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
                 nodeList = this.getElementsByTagNameNS(node, this.gmlns,
                                                        "coordinates");
                 if(nodeList.length > 0) {
-                    coordString = this.concatChildValues(nodeList[0]);
+                    coordString = this.getChildValue(nodeList[0]);
                     coordString = coordString.replace(this.regExes.trimSpace,
                                                       "");
                     coordString = coordString.replace(this.regExes.trimComma,
@@ -557,6 +558,12 @@ OpenLayers.Format.GML = OpenLayers.Class(OpenLayers.Format.XML, {
                                                 this.regExes.trimSpace, "");
                                 attributes[name] = value;
                             }
+                        } else {
+                            // If child has no childNodes (grandchildren),
+                            // set an attribute with null value.
+                            // e.g. <prefix:fieldname/> becomes
+                            // {fieldname: null}
+                            attributes[child.nodeName.split(":").pop()] = null;
                         }
                     }
                 }

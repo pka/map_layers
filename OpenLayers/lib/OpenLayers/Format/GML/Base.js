@@ -8,6 +8,14 @@
  */
 
 /**
+ * Though required in the full build, if the GML format is excluded, we set
+ * the namespace here.
+ */
+if(!OpenLayers.Format.GML) {
+    OpenLayers.Format.GML = {};
+}
+
+/**
  * Class: OpenLayers.Format.GML.Base
  * Superclass for GML parsers.
  *
@@ -40,7 +48,7 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
     
     /**
      * APIProperty: featureType
-     * {String} The local (without prefix) feature typeName.
+     * {Array(String) or String} The local (without prefix) feature typeName(s).
      */
     featureType: null,
     
@@ -80,6 +88,20 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
     xy: true,
 
     /**
+     * Property: geometryTypes
+     * {Object} Maps OpenLayers geometry class names to GML element names.
+     *     Use <setGeometryTypes> before accessing this property.
+     */
+    geometryTypes: null,
+
+    /**
+     * Property: singleFeatureType
+     * {Boolean} True if there is only 1 featureType, and not an array
+     *     of featuretypes.
+     */
+    singleFeatureType: null,
+
+    /**
      * Property: regExes
      * Compiled regular expressions for manipulating strings.
      */
@@ -101,13 +123,18 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
      *     this instance.
      *
      * Valid options properties:
-     * featureType - {String} Local (without prefix) feature typeName (required).
+     * featureType - {Array(String) or String} Local (without prefix) feature 
+     *     typeName(s) (required).
      * featureNS - {String} Feature namespace (required).
      * geometryName - {String} Geometry element name.
      */
     initialize: function(options) {
         OpenLayers.Format.XML.prototype.initialize.apply(this, [options]);
-        this.setNamespace("feature", options.featureNS);
+        this.setGeometryTypes();
+        if(options && options.featureNS) {
+            this.setNamespace("feature", options.featureNS);
+        }
+        this.singleFeatureType = !options || (typeof options.featureType === "string");
     },
     
     /**
@@ -168,6 +195,16 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
             "featureMembers": function(node, obj) {
                 this.readChildNodes(node, obj);                
             },
+            "name": function(node, obj) {
+                obj.name = this.getChildValue(node);
+            },
+            "boundedBy": function(node, obj) {
+                var container = {};
+                this.readChildNodes(node, container);
+                if(container.components && container.components.length > 0) {
+                    obj.bounds = container.components[0];
+                }
+            },
             "Point": function(node, container) {
                 var obj = {points: []};
                 this.readChildNodes(node, obj);
@@ -177,7 +214,7 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
                 container.components.push(obj.points[0]);
             },
             "coordinates": function(node, obj) {
-                var str = this.concatChildValues(node).replace(
+                var str = this.getChildValue(node).replace(
                     this.regExes.trimSpace, ""
                 );
                 str = str.replace(this.regExes.trimComma, ",");
@@ -294,12 +331,17 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
                 // geometry or attributes.
                 var name;
                 var local = node.localName || node.nodeName.split(":").pop();
-                if(local == this.featureType) {
+                if (!this.singleFeatureType && 
+                    (OpenLayers.Util.indexOf(this.featureType, local) != -1)) {
+                        name = "_typeName";
+                }
+                else if(local == this.featureType) {
                     name = "_typeName";
                 } else {
                     // Assume attribute elements have one child node and that the child
                     // is a text node.  Otherwise assume it is a geometry node.
-                    if(node.childNodes.length == 1 && node.firstChild.nodeType == 3) {
+                    if(node.childNodes.length == 0 ||
+                       (node.childNodes.length == 1 && node.firstChild.nodeType == 3)) {
                         if(this.extractAttributes) {
                             name = "_attribute";
                         }
@@ -314,9 +356,17 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
             "_typeName": function(node, obj) {
                 var container = {components: [], attributes: {}};
                 this.readChildNodes(node, container);
+                // look for common gml namespaced elements
+                if(container.name) {
+                    container.attributes.name = container.name;
+                }
                 var feature = new OpenLayers.Feature.Vector(
                     container.components[0], container.attributes
                 );
+                if (!this.singleFeatureType) {
+                    feature.type = node.nodeName.split(":").pop();
+                    feature.namespace = node.namespaceURI;
+                }
                 var fid = node.getAttribute("fid") ||
                     this.getAttributeNS(node, this.namespaces["gml"], "id");
                 if(fid) {
@@ -327,7 +377,10 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
                     feature.geometry.transform(
                         this.externalProjection, this.internalProjection
                     );
-                }                       
+                }
+                if(container.bounds) {
+                    feature.geometry.bounds = container.bounds;
+                }
                 obj.features.push(feature);
             },
             "_geometry": function(node, obj) {
@@ -453,7 +506,7 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
                         this.writeNode(
                             "feature:_attribute",
                             {name: name, value: value}, node
-                        )
+                        );
                     }
                 }
                 return node;
@@ -499,17 +552,19 @@ OpenLayers.Format.GML.Base = OpenLayers.Class(OpenLayers.Format.XML, {
     },
     
     /**
-     * Property: geometryTypes
-     * {Object} Maps OpenLayers geometry class names to GML element names.
+     * Function: setGeometryTypes
+     * Sets the <geometryTypes> mapping.
      */
-    geometryTypes: {
-        "OpenLayers.Geometry.Point": "Point",
-        "OpenLayers.Geometry.MultiPoint": "MultiPoint",
-        "OpenLayers.Geometry.LineString": "LineString",
-        "OpenLayers.Geometry.MultiLineString": "MultiLineString",
-        "OpenLayers.Geometry.Polygon": "Polygon",
-        "OpenLayers.Geometry.MultiPolygon": "MultiPolygon",
-        "OpenLayers.Geometry.Collection": "GeometryCollection"
+    setGeometryTypes: function() {
+        this.geometryTypes = {
+            "OpenLayers.Geometry.Point": "Point",
+            "OpenLayers.Geometry.MultiPoint": "MultiPoint",
+            "OpenLayers.Geometry.LineString": "LineString",
+            "OpenLayers.Geometry.MultiLineString": "MultiLineString",
+            "OpenLayers.Geometry.Polygon": "Polygon",
+            "OpenLayers.Geometry.MultiPolygon": "MultiPolygon",
+            "OpenLayers.Geometry.Collection": "GeometryCollection"
+        };
     },
 
     CLASS_NAME: "OpenLayers.Format.GML.Base" 

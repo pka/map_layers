@@ -13,7 +13,10 @@
 
 /**
  * Class: OpenLayers.Control.EditingToolbar 
- *
+ * The EditingToolbar is a panel of 4 controls to draw polygons, lines, 
+ * points, or to navigate the map by panning. By default it appears in the 
+ * upper right corner of the map.
+ * 
  * Inherits from:
  *  - <OpenLayers.Control.Panel>
  */
@@ -39,9 +42,6 @@ OpenLayers.Control.EditingToolbar = OpenLayers.Class(
           new OpenLayers.Control.DrawFeature(layer, OpenLayers.Handler.Path, {'displayClass': 'olControlDrawFeaturePath'}),
           new OpenLayers.Control.DrawFeature(layer, OpenLayers.Handler.Polygon, {'displayClass': 'olControlDrawFeaturePolygon'})
         ];
-        for (var i=0, len=controls.length; i<len; i++) {
-            controls[i].featureAdded = function(feature) { feature.state = OpenLayers.State.INSERT; };
-        }
         this.addControls(controls);
     },
 

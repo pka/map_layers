@@ -5,6 +5,7 @@
  
 /**
  * @requires OpenLayers/Layer/MapServer.js
+ * @requires OpenLayers/Console.js
  */
 
 /**

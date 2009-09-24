@@ -118,6 +118,12 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
     mode: null,
 
     /**
+     * Property: modified
+     * {Boolean} The currently selected feature has been modified.
+     */
+    modified: false,
+
+    /**
      * Property: radiusHandle
      * {<OpenLayers.Feature.Vector>} A handle for rotating/resizing a feature.
      */
@@ -195,17 +201,15 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
         var selectOptions = {
             geometryTypes: this.geometryTypes,
             clickout: this.clickout,
-            toggle: this.toggle
+            toggle: this.toggle,
+            onBeforeSelect: this.beforeSelectFeature,
+            onSelect: this.selectFeature,
+            onUnselect: this.unselectFeature,
+            scope: this
         };
         this.selectControl = new OpenLayers.Control.SelectFeature(
             layer, selectOptions
         );
-        this.layer.events.on({
-            "beforefeatureselected": this.beforeSelectFeature,
-            "featureselected": this.selectFeature,
-            "featureunselected": this.unselectFeature,
-            scope: this
-        });
 
         // configure the drag control
         var dragOptions = {
@@ -214,8 +218,8 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             onStart: function(feature, pixel) {
                 control.dragStart.apply(control, [feature, pixel]);
             },
-            onDrag: function(feature) {
-                control.dragVertex.apply(control, [feature]);
+            onDrag: function(feature, pixel) {
+                control.dragVertex.apply(control, [feature, pixel]);
             },
             onComplete: function(feature) {
                 control.dragComplete.apply(control, [feature]);
@@ -239,12 +243,6 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      * Take care of things that are not handled in superclass.
      */
     destroy: function() {
-        this.layer.events.un({
-            "beforefeatureselected": this.beforeSelectFeature,
-            "featureselected": this.selectFeature,
-            "featureunselected": this.unselectFeature,
-            scope: this
-        });
         this.layer = null;
         this.selectControl.destroy();
         this.dragControl.destroy();
@@ -279,7 +277,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             this.layer.removeFeatures(this.virtualVertices, {silent: true});
             this.vertices = [];
             this.dragControl.deactivate();
-            if(this.feature && this.feature.geometry) {
+            if(this.feature && this.feature.geometry && this.feature.layer) {
                 this.selectControl.unselect.apply(this.selectControl,
                                                   [this.feature]);
             }
@@ -295,12 +293,11 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      * Called before a feature is selected.
      *
      * Parameters:
-     * object - {Object} Object with a feature property referencing the
-     *     selected feature.
+     * feature - {<OpenLayers.Feature.Vector>} The feature about to be selected.
      */
-    beforeSelectFeature: function(object) {
+    beforeSelectFeature: function(feature) {
         return this.layer.events.triggerEvent(
-            "beforefeaturemodified", {feature: object.feature}
+            "beforefeaturemodified", {feature: feature}
         );
     },
 
@@ -309,11 +306,11 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      * Called when the select feature control selects a feature.
      *
      * Parameters:
-     * object - {Object} Object with a feature property referencing the
-     *     selected feature.
+     * feature - {<OpenLayers.Feature.Vector>} the selected feature.
      */
-    selectFeature: function(object) {
-        this.feature = object.feature;
+    selectFeature: function(feature) {
+        this.feature = feature;
+        this.modified = false;
         this.resetVertices();
         this.dragControl.activate();
         this.onModificationStart(this.feature);
@@ -324,10 +321,9 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      * Called when the select feature control unselects a feature.
      *
      * Parameters:
-     * object - {Object} Object with a feature property referencing the
-     *     unselected feature.
+     * feature - {<OpenLayers.Feature.Vector>} The unselected feature.
      */
-    unselectFeature: function(object) {
+    unselectFeature: function(feature) {
         this.layer.removeFeatures(this.vertices, {silent: true});
         this.vertices = [];
         this.layer.destroyFeatures(this.virtualVertices, {silent: true});
@@ -342,9 +338,12 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
         }
         this.feature = null;
         this.dragControl.deactivate();
-        this.onModificationEnd(object.feature);
-        this.layer.events.triggerEvent("afterfeaturemodified", 
-                                       {feature: object.feature});
+        this.onModificationEnd(feature);
+        this.layer.events.triggerEvent("afterfeaturemodified", {
+            feature: feature,
+            modified: this.modified
+        });
+        this.modified = false;
     },
 
     /**
@@ -401,21 +400,28 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      *
      * Parameters:
      * vertex - {<OpenLayers.Feature.Vector>} The vertex being dragged.
+     * pixel - {<OpenLayers.Pixel>} Pixel location of the mouse event.
      */
-    dragVertex: function(vertex) {
+    dragVertex: function(vertex, pixel) {
+        this.modified = true;
         /**
          * Five cases:
          * 1) dragging a simple point
          * 2) dragging a virtual vertex
          * 3) dragging a drag handle
-         * 4) dragging a radius handle
-         * 5) dragging a real vertex
+         * 4) dragging a real vertex
+         * 5) dragging a radius handle
          */
         if(this.feature.geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
             // dragging a simple point
             if(this.feature != vertex) {
                 this.feature = vertex;
             }
+            this.layer.events.triggerEvent("vertexmodified", {
+                vertex: vertex.geometry,
+                feature: this.feature,
+                pixel: pixel
+            });
         } else {
             if(vertex._index) {
                 // dragging a virtual vertex
@@ -433,9 +439,15 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                     this.layer.destroyFeatures([this.radiusHandle], {silent: true});
                     this.radiusHandle = null;
                 }
+            } else if(vertex !== this.radiusHandle) {
+                // dragging a real vertex
+                this.layer.events.triggerEvent("vertexmodified", {
+                    vertex: vertex.geometry,
+                    feature: this.feature,
+                    pixel: pixel
+                });
             }
             // dragging a radius handle - no special treatment
-            // dragging a real vertex - no special treatment
             if(this.virtualVertices.length > 0) {
                 this.layer.destroyFeatures(this.virtualVertices, {silent: true});
                 this.virtualVertices = [];
@@ -457,9 +469,22 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
      */
     dragComplete: function(vertex) {
         this.resetVertices();
+        this.setFeatureState();
         this.onModification(this.feature);
         this.layer.events.triggerEvent("featuremodified", 
                                        {feature: this.feature});
+    },
+    
+    /**
+     * Method: setFeatureState
+     * Called when the feature is modified.  If the current state is not
+     *     INSERT or DELETE, the state is set to UPDATE.
+     */
+    setFeatureState: function() {
+        if(this.feature.state != OpenLayers.State.INSERT &&
+           this.feature.state != OpenLayers.State.DELETE) {
+            this.feature.state = OpenLayers.State.UPDATE;
+        }
     },
     
     /**
@@ -501,8 +526,11 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                              OpenLayers.Control.ModifyFeature.RESIZE))) {
                 this.collectRadiusHandle();
             }
-            if((this.mode & OpenLayers.Control.ModifyFeature.RESHAPE)) {
-                this.collectVertices();
+            if(this.mode & OpenLayers.Control.ModifyFeature.RESHAPE){
+                // Don't collect vertices when we're resizing
+                if (!(this.mode & OpenLayers.Control.ModifyFeature.RESIZE)){
+                    this.collectVertices();
+                }
             }
         }
     },
@@ -533,6 +561,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                 this.layer.drawFeature(this.feature,
                                        this.selectControl.renderIntent);
                 this.resetVertices();
+                this.setFeatureState();
                 this.onModification(this.feature);
                 this.layer.events.triggerEvent("featuremodified", 
                                                {feature: this.feature});
@@ -553,6 +582,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             var i, vertex, component, len;
             if(geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
                 vertex = new OpenLayers.Feature.Vector(geometry);
+                vertex._sketch = true;
                 control.vertices.push(vertex);
             } else {
                 var numVert = geometry.components.length;
@@ -563,6 +593,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                     component = geometry.components[i];
                     if(component.CLASS_NAME == "OpenLayers.Geometry.Point") {
                         vertex = new OpenLayers.Feature.Vector(component);
+                        vertex._sketch = true;
                         control.vertices.push(vertex);
                     } else {
                         collectComponentVertices(component);
@@ -585,6 +616,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                             // set the virtual parent and intended index
                             point.geometry.parent = geometry;
                             point._index = i + 1;
+                            point._sketch = true;
                             control.virtualVertices.push(point);
                         }
                     }
@@ -611,6 +643,7 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
             OpenLayers.Geometry.Point.prototype.move.call(this, x, y);
             geometry.move(x, y);
         };
+        origin._sketch = true;
         this.dragHandle = origin;
         this.layer.addFeatures([this.dragHandle], {silent: true});
     },
@@ -631,7 +664,9 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
         );
         var radius = new OpenLayers.Feature.Vector(radiusGeometry);
         var resize = (this.mode & OpenLayers.Control.ModifyFeature.RESIZE);
+        var reshape = (this.mode & OpenLayers.Control.ModifyFeature.RESHAPE);
         var rotate = (this.mode & OpenLayers.Control.ModifyFeature.ROTATE);
+
         radiusGeometry.move = function(x, y) {
             OpenLayers.Geometry.Point.prototype.move.call(this, x, y);
             var dx1 = this.x - originGeometry.x;
@@ -646,11 +681,21 @@ OpenLayers.Control.ModifyFeature = OpenLayers.Class(OpenLayers.Control, {
                 geometry.rotate(angle, originGeometry);
             }
             if(resize) {
-                var l0 = Math.sqrt((dx0 * dx0) + (dy0 * dy0));
-                var l1 = Math.sqrt((dx1 * dx1) + (dy1 * dy1));
-                geometry.resize(l1 / l0, originGeometry);
+                var scale, ratio;
+                // 'resize' together with 'reshape' implies that the aspect 
+                // ratio of the geometry will not be preserved whilst resizing 
+                if (reshape) {
+                    scale = dy1 / dy0;
+                    ratio = (dx1 / dx0) / scale;
+                } else {
+                    var l0 = Math.sqrt((dx0 * dx0) + (dy0 * dy0));
+                    var l1 = Math.sqrt((dx1 * dx1) + (dy1 * dy1));
+                    scale = l1 / l0;
+                }
+                geometry.resize(scale, originGeometry, ratio);
             }
         };
+        radius._sketch = true;
         this.radiusHandle = radius;
         this.layer.addFeatures([this.radiusHandle], {silent: true});
     },

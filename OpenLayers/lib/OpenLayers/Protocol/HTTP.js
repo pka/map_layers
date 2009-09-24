@@ -56,6 +56,13 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
     scope: null,
 
     /**
+     * Property: readWithPOST
+     * {Boolean} true if read operations are done with POST requests
+     *     instead of GET, defaults to false.
+     */
+    readWithPOST: false,
+
+    /**
      * Constructor: OpenLayers.Protocol.HTTP
      * A class for giving layers generic HTTP protocol.
      *
@@ -105,7 +112,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
     },
 
     /**
-     * Method: read
+     * APIMethod: read
      * Construct a request for reading new features.
      *
      * Parameters:
@@ -120,6 +127,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
      *     serialized according to the OpenSearch Geo extension
      *     (bbox=minx,miny,maxx,maxy).  Note that a BBOX filter as the child
      *     of a logical filter will not be serialized.
+     * readWithPOST - {Boolean} If the request should be done with POST.
      *
      * Returns:
      * {<OpenLayers.Protocol.Response>} A response object, whose "priv" property
@@ -129,8 +137,10 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
      */
     read: function(options) {
         options = OpenLayers.Util.applyDefaults(options, this.options);
+        var readWithPOST = (options.readWithPOST !== undefined) ?
+                           options.readWithPOST : this.readWithPOST;
         var resp = new OpenLayers.Protocol.Response({requestType: "read"});
-        
+
         if(options.filter && options.filter instanceof OpenLayers.Filter.Spatial) {
             if(options.filter.type == OpenLayers.Filter.Spatial.BBOX) {
                 options.params = OpenLayers.Util.extend(options.params, {
@@ -139,12 +149,23 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
             }
         }
 
-        resp.priv = OpenLayers.Request.GET({
-            url: options.url,
-            callback: this.createCallback(this.handleRead, resp, options),
-            params: options.params,
-            headers: options.headers
-        });        
+        if(readWithPOST) {
+            resp.priv = OpenLayers.Request.POST({
+                url: options.url,
+                callback: this.createCallback(this.handleRead, resp, options),
+                data: OpenLayers.Util.getParameterString(options.params),
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                }
+            });
+        } else {
+            resp.priv = OpenLayers.Request.GET({
+                url: options.url,
+                callback: this.createCallback(this.handleRead, resp, options),
+                params: options.params,
+                headers: options.headers
+            });
+        }
 
         return resp;
     },
@@ -164,7 +185,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
     },
     
     /**
-     * Method: create
+     * APIMethod: create
      * Construct a request for writing newly created features.
      *
      * Parameters:
@@ -213,7 +234,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
     },
 
     /**
-     * Method: update
+     * APIMethod: update
      * Construct a request updating modified feature.
      *
      * Parameters:
@@ -262,7 +283,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
     },
 
     /**
-     * Method: delete
+     * APIMethod: delete
      * Construct a request deleting a removed feature.
      *
      * Parameters:
@@ -358,7 +379,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
     },
 
     /**
-     * Method: commit
+     * APIMethod: commit
      * Iterate over each feature and take action based on the feature state.
      *     Possible actions are create, update and delete.
      *
@@ -391,12 +412,13 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
         types[OpenLayers.State.INSERT] = [];
         types[OpenLayers.State.UPDATE] = [];
         types[OpenLayers.State.DELETE] = [];
-        var feature, list;
+        var feature, list, requestFeatures = [];
         for(var i=0, len=features.length; i<len; ++i) {
             feature = features[i];
             list = types[feature.state];
             if(list) {
                 list.push(feature);
+                requestFeatures.push(feature); 
             }
         }
         // tally up number of requests
@@ -404,19 +426,43 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
             types[OpenLayers.State.UPDATE].length +
             types[OpenLayers.State.DELETE].length;
         
-        function callback(response) {
-            nResponses++;
-            response.last = (nResponses >= nRequests);
-            this.callUserCallback(response, options);
-        }
+        // This response will be sent to the final callback after all the others
+        // have been fired.
+        var success = true;
+        var finalResponse = new OpenLayers.Protocol.Response({
+            reqFeatures: requestFeatures        
+        });
         
+        function insertCallback(response) {
+            var len = response.features ? response.features.length : 0;
+            var fids = new Array(len);
+            for(var i=0; i<len; ++i) {
+                fids[i] = response.features[i].fid;
+            }   
+            finalResponse.insertIds = fids;
+            callback.apply(this, [response]);
+        }
+ 
+        function callback(response) {
+            this.callUserCallback(response, options);
+            success = success && response.success();
+            nResponses++;
+            if (nResponses >= nRequests) {
+                if (options.callback) {
+                    finalResponse.code = success ? 
+                        OpenLayers.Protocol.Response.SUCCESS :
+                        OpenLayers.Protocol.Response.FAILURE;
+                    options.callback.apply(options.scope, [finalResponse]);
+                }    
+            }
+        }
+
         // start issuing requests
         var queue = types[OpenLayers.State.INSERT];
         if(queue.length > 0) {
             resp.push(this.create(
                 queue, OpenLayers.Util.applyDefaults(
-                    {callback: callback, scope: this},
-                    options.create || {} // remove || when #1716 is resolved
+                    {callback: insertCallback, scope: this}, options.create
                 )
             ));
         }
@@ -424,8 +470,7 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
         for(var i=queue.length-1; i>=0; --i) {
             resp.push(this.update(
                 queue[i], OpenLayers.Util.applyDefaults(
-                    {callback: callback, scope: this}, 
-                    options.update || {} // remove || when #1716 is resolved
+                    {callback: callback, scope: this}, options.update
                 ))
             );
         }
@@ -433,12 +478,26 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
         for(var i=queue.length-1; i>=0; --i) {
             resp.push(this["delete"](
                 queue[i], OpenLayers.Util.applyDefaults(
-                    {callback: callback, scope: this},
-                    options["delete"] || {} // remove || when #1716 is resolved
+                    {callback: callback, scope: this}, options["delete"]
                 ))
             );
         }
         return resp;
+    },
+
+    /**
+     * APIMethod: abort
+     * Abort an ongoing request, the response object passed to
+     * this method must come from this HTTP protocol (as a result
+     * of a create, read, update, delete or commit operation).
+     *
+     * Parameters:
+     * response - {<OpenLayers.Protocol.Response>}
+     */
+    abort: function(response) {
+        if (response) {
+            response.priv.abort();
+        }
     },
 
     /**
@@ -455,9 +514,6 @@ OpenLayers.Protocol.HTTP = OpenLayers.Class(OpenLayers.Protocol, {
         var opt = options[resp.requestType];
         if(opt && opt.callback) {
             opt.callback.call(opt.scope, resp);
-        }
-        if(resp.last && options.callback) {
-            options.callback.call(options.scope);
         }
     },
 

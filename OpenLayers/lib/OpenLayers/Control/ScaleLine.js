@@ -8,7 +8,9 @@
 
 /**
  * Class: OpenLayers.Control.ScaleLine
- * Display a small line indicator representing the current map scale on the map.
+ * The ScaleLine displays a small line indicator representing the current 
+ * map scale on the map. By default it is drawn in the lower left corner of
+ * the map.
  * 
  * Inherits from:
  *  - <OpenLayers.Control>
@@ -61,7 +63,7 @@ OpenLayers.Control.ScaleLine = OpenLayers.Class(OpenLayers.Control, {
     eBottom:null,
 
     /**
-     * Constructor: OpenLayers.ScaleLine
+     * Constructor: OpenLayers.Control.ScaleLine
      * Create a new scale line control.
      * 
      * Parameters:
@@ -187,12 +189,18 @@ OpenLayers.Control.ScaleLine = OpenLayers.Class(OpenLayers.Control, {
         var bottomPx = bottomMax / res;
         
         // now set the pixel widths
-        this.eTop.style.width = Math.round(topPx) + "px";
-        this.eBottom.style.width = Math.round(bottomPx) + "px"; 
-        
         // and the values inside them
-        this.eTop.innerHTML = topRounded + " " + topUnits;
-        this.eBottom.innerHTML = bottomRounded + " " + bottomUnits ;
+        
+        if (this.eBottom.style.visibility == "visible"){
+            this.eBottom.style.width = Math.round(bottomPx) + "px"; 
+            this.eBottom.innerHTML = bottomRounded + " " + bottomUnits ;
+        }
+            
+        if (this.eTop.style.visibility == "visible"){
+            this.eTop.style.width = Math.round(topPx) + "px";
+            this.eTop.innerHTML = topRounded + " " + topUnits;
+        }
+        
     }, 
 
     CLASS_NAME: "OpenLayers.Control.ScaleLine"

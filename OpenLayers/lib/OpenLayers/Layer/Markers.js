@@ -22,7 +22,7 @@ OpenLayers.Layer.Markers = OpenLayers.Class(OpenLayers.Layer, {
     isBaseLayer: false,
     
     /** 
-     * Property: markers 
+     * APIProperty: markers 
      * {Array(<OpenLayers.Marker>)} internal marker list 
      */
     markers: null,
@@ -122,11 +122,7 @@ OpenLayers.Layer.Markers = OpenLayers.Class(OpenLayers.Layer, {
     removeMarker: function(marker) {
         if (this.markers && this.markers.length) {
             OpenLayers.Util.removeItem(this.markers, marker);
-            if ((marker.icon != null) && (marker.icon.imageDiv != null) &&
-                (marker.icon.imageDiv.parentNode == this.div) ) {
-                this.div.removeChild(marker.icon.imageDiv);    
-                marker.drawn = false;
-            }
+            marker.erase();
         }
     },
 
@@ -156,10 +152,11 @@ OpenLayers.Layer.Markers = OpenLayers.Class(OpenLayers.Layer, {
         if (px == null) {
             marker.display(false);
         } else {
-            var markerImg = marker.draw(px);
-            if (!marker.drawn) {
+            if (!marker.isDrawn()) {
+                var markerImg = marker.draw(px);
                 this.div.appendChild(markerImg);
-                marker.drawn = true;
+            } else if(marker.icon) {
+                marker.icon.moveTo(px);
             }
         }
     },

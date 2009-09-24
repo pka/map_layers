@@ -83,8 +83,9 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
         this.zoomBox.style.zIndex = this.map.Z_INDEX_BASE["Popup"] - 1;
         this.map.viewPortDiv.appendChild(this.zoomBox);
 
-        // TBD: use CSS classes instead
-        this.map.div.style.cursor = "crosshair";
+        OpenLayers.Element.addClass(
+            this.map.viewPortDiv, "olDrawBox"
+        );
     },
 
     /**
@@ -102,7 +103,7 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
 
         // depending on the box model, modify width and height to take borders
         // of the box into account
-        var box = this.getBoxCharacteristics(deltaX, deltaY);
+        var box = this.getBoxCharacteristics();
         if (box.newBoxModel) {
             if (xy.x > startX) {
                 this.zoomBox.style.width =
@@ -133,9 +134,6 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
         } 
         this.removeBox();
 
-        // TBD: use CSS classes instead
-        this.map.div.style.cursor = "";
-
         this.callback("done", [result]);
     },
 
@@ -147,6 +145,10 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
         this.map.viewPortDiv.removeChild(this.zoomBox);
         this.zoomBox = null;
         this.boxCharacteristics = null;
+        OpenLayers.Element.removeClass(
+            this.map.viewPortDiv, "olDrawBox"
+        );
+
     },
 
     /**
@@ -173,7 +175,17 @@ OpenLayers.Handler.Box = OpenLayers.Class(OpenLayers.Handler, {
         }
     },
     
-    getBoxCharacteristics: function(dx, dy) {
+    /**
+     * Method: getCharacteristics
+     * Determines offset and box model for a box.
+     * 
+     * Returns:
+     * {Object} a hash with the following properties:
+     *     - xOffset - Corner offset in x-direction
+     *     - yOffset - Corner offset in y-direction
+     *     - newBoxModel - true for all browsers except IE in quirks mode
+     */
+    getBoxCharacteristics: function() {
         if (!this.boxCharacteristics) {
             var xOffset = parseInt(OpenLayers.Element.getStyle(this.zoomBox,
                 "border-left-width")) + parseInt(OpenLayers.Element.getStyle(

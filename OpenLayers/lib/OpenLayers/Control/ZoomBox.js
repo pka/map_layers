@@ -9,6 +9,9 @@
 
 /**
  * Class: OpenLayers.Control.ZoomBox
+ * The ZoomBox control enables zooming directly to a given extent, by drawing 
+ * a box on the map. The box is drawn by holding down shift, whilst dragging 
+ * the mouse.
  *
  * Inherits from:
  *  - <OpenLayers.Control>
@@ -25,6 +28,12 @@ OpenLayers.Control.ZoomBox = OpenLayers.Class(OpenLayers.Control, {
      * {Boolean} Should the control be used for zooming out?
      */
     out: false,
+
+    /**
+     * Property: alwaysZoom
+     * {Boolean} Always zoom in/out, when box drawed 
+     */
+    alwaysZoom: false,
 
     /**
      * Method: draw
@@ -63,7 +72,12 @@ OpenLayers.Control.ZoomBox = OpenLayers.Class(OpenLayers.Control, {
                 var ymax = center.lat + (extent.getHeight()/2)*zoomFactor;
                 var bounds = new OpenLayers.Bounds(xmin, ymin, xmax, ymax);
             }
+            // always zoom in/out 
+            var lastZoom = this.map.getZoom(); 
             this.map.zoomToExtent(bounds);
+            if (lastZoom == this.map.getZoom() && this.alwaysZoom == true){ 
+                this.map.zoomTo(lastZoom + (this.out ? -1 : 1)); 
+            }
         } else { // it's a pixel
             if (!this.out) {
                 this.map.setCenter(this.map.getLonLatFromPixel(position),

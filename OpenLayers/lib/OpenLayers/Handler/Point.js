@@ -11,9 +11,11 @@
 /**
  * Class: OpenLayers.Handler.Point
  * Handler to draw a point on the map.  Point is displayed on mouse down,
- * moves on mouse move, and is finished on mouse up.  The handler triggers
- * callbacks for 'done' and 'cancel'.  Create a new instance with the
- * <OpenLayers.Handler.Point> constructor.
+ *     moves on mouse move, and is finished on mouse up.  The handler triggers
+ *     callbacks for 'done', 'cancel', and 'modify'.  The modify callback is
+ *     called with each change in the sketch and will receive the latest point
+ *     drawn.  Create a new instance with the <OpenLayers.Handler.Point>
+ *     constructor.
  * 
  * Inherits from:
  *  - <OpenLayers.Handler>
@@ -84,19 +86,25 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      *
      * Parameters:
      * control - {<OpenLayers.Control>} The control that owns this handler
-     * callbacks - {Object} An object with a 'done' property whose value is a
-     *             function to be called when the point drawing is finished.
-     *             The callback should expect to recieve a single argument,
-     *             the point geometry.  If the callbacks object contains a
-     *             'cancel' property, this function will be called when the
-     *             handler is deactivated while drawing.  The cancel should
-     *             expect to receive a geometry.
+     * callbacks - {Object} An object with a properties whose values are
+     *     functions.  Various callbacks described below.
      * options - {Object} An optional object with properties to be set on the
      *           handler
+     *
+     * Named callbacks:
+     * create - Called when a sketch is first created.  Callback called with
+     *     the creation point geometry and sketch feature.
+     * modify - Called with each move of a vertex with the vertex (point)
+     *     geometry and the sketch feature.
+     * done - Called when the point drawing is finished.  The callback will
+     *     recieve a single argument, the point geometry.
+     * cancel - Called when the handler is deactivated while drawing.  The
+     *     cancel callback will receive a geometry.
      */
     initialize: function(control, callbacks, options) {
-        // TBD: deal with style
-        this.style = OpenLayers.Util.extend(OpenLayers.Feature.Vector.style['default'], {});
+        if(!(options && options.layerOptions && options.layerOptions.styleMap)) {
+            this.style = OpenLayers.Util.extend(OpenLayers.Feature.Vector.style['default'], {});
+        }
 
         OpenLayers.Handler.prototype.initialize.apply(this, arguments);
     },
@@ -127,11 +135,17 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
     /**
      * Method: createFeature
      * Add temporary features
+     *
+     * Parameters:
+     * pixel - {<OpenLayers.Pixel>} A pixel location on the map.
      */
-    createFeature: function() {
+    createFeature: function(pixel) {
+        var lonlat = this.map.getLonLatFromPixel(pixel);
         this.point = new OpenLayers.Feature.Vector(
-            new OpenLayers.Geometry.Point()
+            new OpenLayers.Geometry.Point(lonlat.lon, lonlat.lat)
         );
+        this.callback("create", [this.point.geometry, this.point]);
+        this.point.geometry.clearBounds();
         this.layer.addFeatures([this.point], {silent: true});
     },
 
@@ -232,6 +246,22 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
     },
     
     /**
+     * Method: modifyFeature
+     * Modify the existing geometry given a pixel location.
+     *
+     * Parameters:
+     * pixel - {<OpenLayers.Pixel>} A pixel location on the map.
+     */
+    modifyFeature: function(pixel) {
+        var lonlat = this.map.getLonLatFromPixel(pixel);
+        this.point.geometry.x = lonlat.lon;
+        this.point.geometry.y = lonlat.lat;
+        this.callback("modify", [this.point.geometry, this.point]);
+        this.point.geometry.clearBounds();
+        this.drawFeature();
+    },
+
+    /**
      * Method: drawFeature
      * Render features on the temporary layer.
      */
@@ -248,8 +278,8 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      * {<OpenLayers.Geometry.Point>}
      */
     getGeometry: function() {
-        var geometry = this.point.geometry;
-        if(this.multi) {
+        var geometry = this.point && this.point.geometry;
+        if(geometry && this.multi) {
             geometry = new OpenLayers.Geometry.MultiPoint([geometry]);
         }
         return geometry;
@@ -263,7 +293,8 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      * {<OpenLayers.Geometry>}
      */
     geometryClone: function() {
-        return this.getGeometry().clone();
+        var geom = this.getGeometry();
+        return geom && geom.clone();
     },
   
     /**
@@ -286,19 +317,16 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
         if(this.lastDown && this.lastDown.equals(evt.xy)) {
             return true;
         }
+        this.drawing = true;
         if(this.lastDown == null) {
             if(this.persist) {
                 this.destroyFeature();
             }
-            this.createFeature();
+            this.createFeature(evt.xy);
+        } else {
+            this.modifyFeature(evt.xy);
         }
         this.lastDown = evt.xy;
-        this.drawing = true;
-        var lonlat = this.map.getLonLatFromPixel(evt.xy);
-        this.point.geometry.x = lonlat.lon;
-        this.point.geometry.y = lonlat.lat;
-        this.point.geometry.clearBounds();
-        this.drawFeature();
         return false;
     },
 
@@ -315,11 +343,7 @@ OpenLayers.Handler.Point = OpenLayers.Class(OpenLayers.Handler, {
      */
     mousemove: function (evt) {
         if(this.drawing) {
-            var lonlat = this.map.getLonLatFromPixel(evt.xy);
-            this.point.geometry.x = lonlat.lon;
-            this.point.geometry.y = lonlat.lat;
-            this.point.geometry.clearBounds();
-            this.drawFeature();
+            this.modifyFeature(evt.xy);
         }
         return true;
     },

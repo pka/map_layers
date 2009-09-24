@@ -64,9 +64,20 @@ OpenLayers.Style = OpenLayers.Class({
      * Property: defaultStyle
      * {Object} hash of style properties to use as default for merging
      * rule-based style symbolizers onto. If no rules are defined,
-     * createSymbolizer will return this style.
+     * createSymbolizer will return this style. If <defaultsPerSymbolizer> is set to
+     * true, the defaultStyle will only be taken into account if there are
+     * rules defined.
      */
     defaultStyle: null,
+    
+    /**
+     * Property: defaultsPerSymbolizer
+     * {Boolean} If set to true, the <defaultStyle> will extend the symbolizer
+     * of every rule. Properties of the <defaultStyle> will also be used to set
+     * missing symbolizer properties if the symbolizer has stroke, fill or
+     * graphic set to true. Default is false.
+     */
+    defaultsPerSymbolizer: false,
     
     /**
      * Property: propertyStyles
@@ -85,21 +96,29 @@ OpenLayers.Style = OpenLayers.Class({
      *                used as default style for this style object. This style
      *                applies if no rules are specified. Symbolizers defined in
      *                rules will extend this default style.
-     * options      - {Object} An optional object with properties to set on the
-     *                userStyle
+     * options - {Object} An optional object with properties to set on the
+     *     style.
+     *
+     * Valid options:
+     * rules - {Array(<OpenLayers.Rule>)} List of rules to be added to the
+     *     style.
      * 
      * Return:
      * {<OpenLayers.Style>}
      */
     initialize: function(style, options) {
+
+        OpenLayers.Util.extend(this, options);
         this.rules = [];
+        if(options && options.rules) {
+            this.addRules(options.rules);
+        }
 
         // use the default style from OpenLayers.Feature.Vector if no style
         // was given in the constructor
-        this.setDefaultStyle(style || 
-                OpenLayers.Feature.Vector.style["default"]);
-        
-        OpenLayers.Util.extend(this, options);
+        this.setDefaultStyle(style ||
+                             OpenLayers.Feature.Vector.style["default"]);
+
     },
 
     /** 
@@ -127,7 +146,7 @@ OpenLayers.Style = OpenLayers.Class({
      * {Object} symbolizer hash
      */
     createSymbolizer: function(feature) {
-        var style = this.createLiterals(
+        var style = this.defaultsPerSymbolizer ? {} : this.createLiterals(
             OpenLayers.Util.extend({}, this.defaultStyle), feature);
         
         var rules = this.rules;
@@ -161,8 +180,6 @@ OpenLayers.Style = OpenLayers.Class({
         // don't display if there were rules but none applied
         if(rules.length > 0 && appliedRules == false) {
             style.display = "none";
-        } else {
-            style.display = "";
         }
         
         return style;
@@ -185,6 +202,40 @@ OpenLayers.Style = OpenLayers.Class({
                 OpenLayers.Style.SYMBOLIZER_PREFIXES[0];
 
         var symbolizer = rule.symbolizer[symbolizerPrefix] || rule.symbolizer;
+        
+        if(this.defaultsPerSymbolizer === true) {
+            var defaults = this.defaultStyle;
+            OpenLayers.Util.applyDefaults(symbolizer, {
+                pointRadius: defaults.pointRadius
+            });
+            if(symbolizer.stroke === true || symbolizer.graphic === true) {
+                OpenLayers.Util.applyDefaults(symbolizer, {
+                    strokeWidth: defaults.strokeWidth,
+                    strokeColor: defaults.strokeColor,
+                    strokeOpacity: defaults.strokeOpacity,
+                    strokeDashstyle: defaults.strokeDashstyle,
+                    strokeLinecap: defaults.strokeLinecap
+                });
+            }
+            if(symbolizer.fill === true || symbolizer.graphic === true) {
+                OpenLayers.Util.applyDefaults(symbolizer, {
+                    fillColor: defaults.fillColor,
+                    fillOpacity: defaults.fillOpacity
+                });
+            }
+            if(symbolizer.graphic === true) {
+                OpenLayers.Util.applyDefaults(symbolizer, {
+                    pointRadius: this.defaultStyle.pointRadius,
+                    externalGraphic: this.defaultStyle.externalGraphic,
+                    graphicName: this.defaultStyle.graphicName,
+                    graphicOpacity: this.defaultStyle.graphicOpacity,
+                    graphicWidth: this.defaultStyle.graphicWidth,
+                    graphicHeight: this.defaultStyle.graphicHeight,
+                    graphicXOffset: this.defaultStyle.graphicXOffset,
+                    graphicYOffset: this.defaultStyle.graphicYOffset
+                });
+            }
+        }
 
         // merge the style with the current style
         return this.createLiterals(
@@ -234,7 +285,7 @@ OpenLayers.Style = OpenLayers.Class({
         var rules = this.rules;
         var symbolizer, value;
         for (var i=0, len=rules.length; i<len; i++) {
-            var symbolizer = rules[i].symbolizer;
+            symbolizer = rules[i].symbolizer;
             for (var key in symbolizer) {
                 value = symbolizer[key];
                 if (typeof value == "object") {

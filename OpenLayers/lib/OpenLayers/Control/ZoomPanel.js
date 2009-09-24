@@ -11,14 +11,21 @@
 
 /**
  * Class: OpenLayers.Control.ZoomPanel
- * 
- * Note: If you wish to use this class with the default images and you want 
+ * The ZoomPanel control is a compact collecton of 3 zoom controls: a 
+ * <OpenLayers.Control.ZoomIn>, a <OpenLayers.Control.ZoomToMaxExtent>, and a
+ * <OpenLayers.Control.ZoomOut>. By default it is drawn in the upper left 
+ * corner of the map.
+ *
+ * Note: 
+ * If you wish to use this class with the default images and you want 
  *       it to look nice in ie6, you should add the following, conditionally
  *       added css stylesheet to your HTML file:
  * 
+ * (code)
  * <!--[if lte IE 6]>
  *   <link rel="stylesheet" href="../theme/default/ie6-style.css" type="text/css" />
  * <![endif]-->
+ * (end)
  * 
  * Inherits from:
  *  - <OpenLayers.Control.Panel>

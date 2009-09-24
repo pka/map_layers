@@ -109,15 +109,21 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
     destroy: function() {
         if (this.imgDiv != null)  {
             if (this.layerAlphaHack) {
+                // unregister the "load" handler
                 OpenLayers.Event.stopObservingElement(this.imgDiv.childNodes[0].id);                
-            } else {
-                OpenLayers.Event.stopObservingElement(this.imgDiv.id);
             }
+
+            // unregister the "load" and "error" handlers. Only the "error" handler if
+            // this.layerAlphaHack is true.
+            OpenLayers.Event.stopObservingElement(this.imgDiv.id);
+            
             if (this.imgDiv.parentNode == this.frame) {
                 this.frame.removeChild(this.imgDiv);
                 this.imgDiv.map = null;
             }
             this.imgDiv.urls = null;
+            // abort any currently loading image
+            this.imgDiv.src = OpenLayers.Util.getImagesLocation() + "blank.gif";
         }
         this.imgDiv = null;
         if ((this.frame != null) && (this.frame.parentNode == this.layer.div)) { 
@@ -262,6 +268,8 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
                 this.backBufferTile.resolution = this.layer.getResolution();
                 this.backBufferTile.renderTile();
             }
+
+            this.backBufferTile.hide();
         }
     },
     
@@ -277,15 +285,44 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
 
         this.imgDiv.viewRequestID = this.layer.map.viewRequestID;
         
-        // needed for changing to a different serve for onload error
-        if (this.layer.url instanceof Array) {
-            this.imgDiv.urls = this.layer.url.slice();
+        if (this.layer.async) {
+            // Asyncronous image requests call the asynchronous getURL method
+            // on the layer to fetch an image that covers 'this.bounds', in the scope of
+            // 'this', setting the 'url' property of the layer itself, and running
+            // the callback 'positionFrame' when the image request returns.
+            this.layer.getURLasync(this.bounds, this, "url", this.positionImage);
+        } else {
+            // syncronous image requests get the url and position the frame immediately,
+            // and don't wait for an image request to come back.
+          
+            // needed for changing to a different server for onload error
+            if (this.layer.url instanceof Array) {
+                this.imgDiv.urls = this.layer.url.slice();
+            }
+          
+            this.url = this.layer.getURL(this.bounds);
+          
+            // position the frame immediately
+            this.positionImage(); 
         }
+        return true;
+    },
+
+    /**
+     * Method: positionImage
+     * Using the properties currenty set on the layer, position the tile correctly.
+     * This method is used both by the async and non-async versions of the Tile.Image
+     * code.
+     */
+     positionImage: function() {
+        // if the this layer doesn't exist at the point the image is
+        // returned, do not attempt to use it for size computation
+        if ( this.layer == null )
+            return;
         
-        this.url = this.layer.getURL(this.bounds);
         // position the frame 
         OpenLayers.Util.modifyDOMElement(this.frame, 
-                                         null, this.position, this.size);   
+                                          null, this.position, this.size);   
 
         var imageSize = this.layer.getImageSize(); 
         if (this.layerAlphaHack) {
@@ -296,7 +333,6 @@ OpenLayers.Tile.Image = OpenLayers.Class(OpenLayers.Tile, {
                     null, null, imageSize) ;
             this.imgDiv.src = this.url;
         }
-        return true;
     },
 
     /** 

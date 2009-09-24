@@ -8,6 +8,8 @@
 
 /**
  * Class: OpenLayers.Control.Panel
+ * The Panel control is a container for other controls. With it toolbars
+ * may be composed.
  *
  * Inherits from:
  *  - <OpenLayers.Control>
@@ -21,7 +23,7 @@ OpenLayers.Control.Panel = OpenLayers.Class(OpenLayers.Control, {
     
     /** 
      * APIProperty: defaultControl
-     * <OpenLayers.Control> The control which is activated when the control is
+     * {<OpenLayers.Control>} The control which is activated when the control is
      * activated (turned on), which also happens at instantiation.
      */
     defaultControl: null, 

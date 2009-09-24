@@ -7,6 +7,7 @@
  * @requires OpenLayers/Renderer.js
  * @requires OpenLayers/StyleMap.js
  * @requires OpenLayers/Feature/Vector.js
+ * @requires OpenLayers/Console.js
  */
 
 /**
@@ -32,49 +33,67 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      *     properties of this event depends on exactly what happened.
      *
      * All event objects have at least the following properties:
-     *  - *object* {Object} A reference to layer.events.object.
-     *  - *element* {DOMElement} A reference to layer.events.element.
+     * object - {Object} A reference to layer.events.object.
+     * element - {DOMElement} A reference to layer.events.element.
      *
      * Supported map event types (in addition to those from <OpenLayers.Layer>):
-     *  - *beforefeatureadded* Triggered before a feature is added.  Listeners
+     * beforefeatureadded - Triggered before a feature is added.  Listeners
      *      will receive an object with a *feature* property referencing the
      *      feature to be added.  To stop the feature from being added, a
      *      listener should return false.
-     *  - *beforefeaturesadded* Triggered before an array of features is added.
+     * beforefeaturesadded - Triggered before an array of features is added.
      *      Listeners will receive an object with a *features* property
      *      referencing the feature to be added. To stop the features from
      *      being added, a listener should return false.
-     *  - *featureadded* Triggered after a feature is added.  The event
+     * featureadded - Triggered after a feature is added.  The event
      *      object passed to listeners will have a *feature* property with a
      *      reference to the added feature.
-     *  - *featuresadded* Triggered after features are added.  The event
+     * featuresadded - Triggered after features are added.  The event
      *      object passed to listeners will have a *features* property with a
      *      reference to an array of added features.
-     *  - *beforefeatureremoved* Triggered before a feature is removed. Listeners
+     * beforefeatureremoved - Triggered before a feature is removed. Listeners
      *      will receive an object with a *feature* property referencing the
      *      feature to be removed.
-     *  - *featureremoved* Triggerd after a feature is removed. The event
+     * featureremoved - Triggerd after a feature is removed. The event
      *      object passed to listeners will have a *feature* property with a
      *      reference to the removed feature.
-     *  - *featuresremoved* Triggered after features are removed. The event
+     * featuresremoved - Triggered after features are removed. The event
      *      object passed to listeners will have a *features* property with a
      *      reference to an array of removed features.
-     *  - *featureselected* Triggered after a feature is selected.  Listeners
+     * featureselected - Triggered after a feature is selected.  Listeners
      *      will receive an object with a *feature* property referencing the
      *      selected feature.
-     *  - *featureunselected* Triggered after a feature is unselected.
+     * featureunselected - Triggered after a feature is unselected.
      *      Listeners will receive an object with a *feature* property
      *      referencing the unselected feature.
-     *  - *beforefeaturemodified* Triggered when a feature is selected to 
+     * beforefeaturemodified - Triggered when a feature is selected to 
      *      be modified.  Listeners will receive an object with a *feature* 
      *      property referencing the selected feature.
-     *  - *featuremodified* Triggered when a feature has been modified.
+     * featuremodified - Triggered when a feature has been modified.
      *      Listeners will receive an object with a *feature* property referencing 
      *      the modified feature.
-     *  - *afterfeaturemodified* Triggered when a feature is finished being modified.
+     * afterfeaturemodified - Triggered when a feature is finished being modified.
      *      Listeners will receive an object with a *feature* property referencing 
      *      the modified feature.
-     *  - *refresh* Triggered when something wants a strategy to ask the protocol
+     * vertexmodified - Triggered when a vertex within any feature geometry
+     *      has been modified.  Listeners will receive an object with a
+     *      *feature* property referencing the modified feature, a *vertex*
+     *      property referencing the vertex modified (always a point geometry),
+     *      and a *pixel* property referencing the pixel location of the
+     *      modification.
+     * sketchstarted - Triggered when a feature sketch bound for this layer
+     *      is started.  Listeners will receive an object with a *feature*
+     *      property referencing the new sketch feature and a *vertex* property
+     *      referencing the creation point.
+     * sketchmodified - Triggered when a feature sketch bound for this layer
+     *      is modified.  Listeners will receive an object with a *vertex*
+     *      property referencing the modified vertex and a *feature* property
+     *      referencing the sketch feature.
+     * sketchcomplete - Triggered when a feature sketch bound for this layer
+     *      is complete.  Listeners will receive an object with a *feature*
+     *      property referencing the sketch feature.  By returning false, a
+     *      listener can stop the sketch feature from being added to the layer.
+     * refresh - Triggered when something wants a strategy to ask the protocol
      *      for a new set of features.
      */
     EVENT_TYPES: ["beforefeatureadded", "beforefeaturesadded",
@@ -82,7 +101,8 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
                   "beforefeatureremoved", "featureremoved", "featuresremoved",
                   "beforefeatureselected", "featureselected", "featureunselected", 
                   "beforefeaturemodified", "featuremodified", "afterfeaturemodified",
-                  "refresh"],
+                  "vertexmodified", "sketchstarted", "sketchmodified",
+                  "sketchcomplete", "refresh"],
 
     /**
      * APIProperty: isBaseLayer
@@ -103,7 +123,7 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      * {Boolean} Whether the layer is a vector layer.
      */
     isVector: true,
-
+    
     /** 
      * APIProperty: features
      * {Array(<OpenLayers.Feature.Vector>)} 
@@ -284,7 +304,7 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      *     the refresh event.
      */
     refresh: function(obj) {
-        if(this.inRange && this.visibility) {
+        if(this.calculateInRange() && this.visibility) {
             this.events.triggerEvent("refresh", obj);
         }
     },
@@ -295,7 +315,7 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      * and assigns the first one whose "supported()" function returns true.
      */    
     assignRenderer: function()  {
-        for (var i=0, len=this.renderers.length; i<this.renderers.length; i++) {
+        for (var i=0, len=this.renderers.length; i<len; i++) {
             var rendererClass = OpenLayers.Renderer[this.renderers[i]];
             if (rendererClass && rendererClass.prototype.supported()) {
                 this.renderer = new rendererClass(this.div,
@@ -335,6 +355,15 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
             this.renderer.map = this.map;
             this.renderer.setSize(this.map.getSize());
         }
+    },
+
+    /**
+     * Method: afterAdd
+     * Called at the end of the map.addLayer sequence.  At this point, the map
+     *     will have a base layer.  Any autoActivate strategies will be
+     *     activated here.
+     */
+    afterAdd: function() {
         if(this.strategies) {
             var strategy, i, len;
             for(i=0, len=this.strategies.length; i<len; i++) {
@@ -424,15 +453,28 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
             this.drawn = true;
             var feature;
             for(var i=0, len=this.features.length; i<len; i++) {
-                if (i != (this.features.length - 1)) {
-                    this.renderer.locked = true;
-                } else {
-                    this.renderer.locked = false;
-                }    
+                this.renderer.locked = (i !== (len - 1));
                 feature = this.features[i];
                 this.drawFeature(feature);
             }
         }    
+    },
+    
+    /** 
+     * APIMethod: display
+     * Hide or show the Layer
+     * 
+     * Parameters:
+     * display - {Boolean}
+     */
+    display: function(display) {
+        OpenLayers.Layer.prototype.display.apply(this, arguments);
+        // we need to set the display style of the root in case it is attached
+        // to a foreign layer
+        var currentDisplay = this.div.style.display;
+        if(currentDisplay != this.renderer.root.style.display) {
+            this.renderer.root.style.display = currentDisplay;
+        }
     },
 
     /**
@@ -491,9 +533,7 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
                 this.preFeatureInsert(feature);
             }
 
-            if (this.drawn) {
-                this.drawFeature(feature);
-            }
+            this.drawFeature(feature);
             
             if (notify) {
                 this.events.triggerEvent("featureadded", {
@@ -511,10 +551,20 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
 
     /**
      * APIMethod: removeFeatures
+     * Remove features from the layer.  This erases any drawn features and
+     *     removes them from the layer's control.  The beforefeatureremoved
+     *     and featureremoved events will be triggered for each feature.  The
+     *     featuresremoved event will be triggered after all features have
+     *     been removed.  To supress event triggering, use the silent option.
      * 
      * Parameters:
-     * features - {Array(<OpenLayers.Feature.Vector>)} 
-     * options - {Object}
+     * features - {Array(<OpenLayers.Feature.Vector>)} List of features to be
+     *     removed.
+     * options - {Object} Optional properties for changing behavior of the
+     *     removal.
+     *
+     * Valid options:
+     * silent - {Boolean} Supress event triggering.  Default is false.
      */
     removeFeatures: function(features, options) {
         if(!features || features.length === 0) {
@@ -522,6 +572,9 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
         }
         if (!(features instanceof Array)) {
             features = [features];
+        }
+        if (features === this.features) {
+            features = features.slice();
         }
 
         var notify = !options || !options.silent;
@@ -555,7 +608,7 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
             feature.layer = null;
 
             if (feature.geometry) {
-                this.renderer.eraseGeometry(feature.geometry);
+                this.renderer.eraseFeatures(feature);
             }
                     
             //in the case that this feature is one of the selected features, 
@@ -607,14 +660,28 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      * feature's style will be used.  If the feature doesn't have a style,
      * the layer's style will be used.
      * 
+     * This function is not designed to be used when adding features to 
+     * the layer (use addFeatures instead). It is meant to be used when
+     * the style of a feature has changed, or in some other way needs to 
+     * visually updated *after* it has already been added to a layer. You
+     * must add the feature to the layer for most layer-related events to 
+     * happen.
+     *
      * Parameters: 
      * feature - {<OpenLayers.Feature.Vector>} 
      * style - {Object} Symbolizer hash or {String} renderIntent
      */
     drawFeature: function(feature, style) {
+        // don't try to draw the feature with the renderer if the layer is not 
+        // drawn itself
+        if (!this.drawn) {
+            return
+        }
         if (typeof style != "object") {
-            var renderIntent = typeof style == "string" ?
-                style : feature.renderIntent;
+            if(!style && feature.state === OpenLayers.State.DELETE) {
+                style = "delete";
+            }
+            var renderIntent = style || feature.renderIntent;
             style = feature.style || this.style;
             if (!style) {
                 style = this.styleMap.createSymbolizer(feature, renderIntent);
@@ -732,9 +799,10 @@ OpenLayers.Layer.Vector = OpenLayers.Class(OpenLayers.Layer, {
      */
     getDataExtent: function () {
         var maxExtent = null;
-        if( this.features && (this.features.length > 0)){
-            var maxExtent = this.features[0].geometry.getBounds();
-            for(var i=0, len=this.features.length; i<len; i++){
+
+        if(this.features && (this.features.length > 0)) {
+            maxExtent = new OpenLayers.Bounds();
+            for(var i=0, len=this.features.length; i<len; i++) {
                 maxExtent.extend(this.features[i].geometry.getBounds());
             }
         }

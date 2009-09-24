@@ -27,6 +27,12 @@ OpenLayers.Renderer = OpenLayers.Class({
      */
     container: null,
     
+    /**
+     * Property: root
+     * {DOMElement}
+     */
+    root: null,
+
     /** 
      * Property: extent
      * {<OpenLayers.Bounds>}
@@ -170,7 +176,13 @@ OpenLayers.Renderer = OpenLayers.Class({
                 if (!bounds.intersectsBounds(this.extent)) {
                     style = {display: "none"};
                 }
-                return this.drawGeometry(feature.geometry, style, feature.id);
+                var rendered = this.drawGeometry(feature.geometry, style, feature.id);
+                if(style.display != "none" && style.label && rendered !== false) {
+                    this.drawText(feature.id, style, feature.geometry.getCentroid());
+                } else {
+                    this.removeText(feature.id);
+                }
+                return rendered;
             }
         }
     },
@@ -190,6 +202,28 @@ OpenLayers.Renderer = OpenLayers.Class({
      */
     drawGeometry: function(geometry, style, featureId) {},
         
+    /**
+     * Method: drawText
+     * Function for drawing text labels.
+     * This method is only called by the renderer itself.
+     * 
+     * Parameters: 
+     * featureId - {String}
+     * style -
+     * location - {<OpenLayers.Geometry.Point>}
+     */
+    drawText: function(featureId, style, location) {},
+
+    /**
+     * Method: removeText
+     * Function for removing text labels.
+     * This method is only called by the renderer itself.
+     * 
+     * Parameters: 
+     * featureId - {String}
+     */
+    removeText: function(featureId) {},
+    
     /**
      * Method: clear
      * Clear all vectors from the renderer.
@@ -225,6 +259,7 @@ OpenLayers.Renderer = OpenLayers.Class({
         }
         for(var i=0, len=features.length; i<len; ++i) {
             this.eraseGeometry(features[i].geometry);
+            this.removeText(features[i].id);
         }
     },
     
@@ -237,6 +272,30 @@ OpenLayers.Renderer = OpenLayers.Class({
      * geometry - {<OpenLayers.Geometry>} 
      */
     eraseGeometry: function(geometry) {},
+    
+    /**
+     * Method: moveRoot
+     * moves this renderer's root to a (different) renderer.
+     * To be implemented by subclasses that require a common renderer root for
+     * feature selection.
+     * 
+     * Parameters:
+     * renderer - {<OpenLayers.Renderer>} target renderer for the moved root
+     */
+    moveRoot: function(renderer) {},
+
+    /**
+     * Method: getRenderLayerId
+     * Gets the layer that this renderer's output appears on. If moveRoot was
+     * used, this will be different from the id of the layer containing the
+     * features rendered by this renderer.
+     * 
+     * Returns:
+     * {String} the id of the output layer.
+     */
+    getRenderLayerId: function() {
+        return this.container.id;
+    },
 
     CLASS_NAME: "OpenLayers.Renderer"
 });

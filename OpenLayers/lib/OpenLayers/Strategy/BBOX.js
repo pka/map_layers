@@ -19,17 +19,39 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
     
     /**
      * Property: bounds
-     * {<OpenLayers.Bounds>} The current data bounds.
+     * {<OpenLayers.Bounds>} The current data bounds (in the same projection
+     *     as the layer - not always the same projection as the map).
      */
     bounds: null,
     
+    /** 
+     * Property: resolution 
+     * {Float} The current data resolution. 
+     */ 
+    resolution: null, 
+           
     /**
-     * Property: ratio
+     * APIProperty: ratio
      * {Float} The ratio of the data bounds to the viewport bounds (in each
-     *     dimension).
+     *     dimension).  Default is 2.
      */
     ratio: 2,
 
+    /** 
+     * Property: resFactor 
+     * {Float} Optional factor used to determine when previously requested 
+     *     features are invalid.  If set, the resFactor will be compared to the
+     *     resolution of the previous request to the current map resolution.
+     *     If resFactor > (old / new) and 1/resFactor < (old / new).  If you
+     *     set a resFactor of 1, data will be requested every time the
+     *     resolution changes.  If you set a resFactor of 3, data will be
+     *     requested if the old resolution is 3 times the new, or if the new is
+     *     3 times the old.  If the old bounds do not contain the new bounds
+     *     new data will always be requested (with or without considering
+     *     resFactor). 
+     */ 
+    resFactor: null, 
+    
     /**
      * Property: response
      * {<OpenLayers.Protocol.Response>} The protocol response object returned
@@ -103,15 +125,37 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
      *      must be incondtionally read.
      */
     update: function(options) {
-        var mapBounds = this.layer.map.getExtent();
+        var mapBounds = this.getMapBounds();
         if ((options && options.force) || this.invalidBounds(mapBounds)) {
             this.calculateBounds(mapBounds);
+            this.resolution = this.layer.map.getResolution(); 
             this.triggerRead();
         }
+    },
+    
+    /**
+     * Method: getMapBounds
+     * Get the map bounds expressed in the same projection as this layer.
+     *
+     * Returns:
+     * {<OpenLayers.Bounds>} Map bounds in the projection of the layer.
+     */
+    getMapBounds: function() {
+        var bounds = this.layer.map.getExtent();
+        if(!this.layer.projection.equals(this.layer.map.getProjectionObject())) {
+            bounds = bounds.clone().transform(
+                this.layer.map.getProjectionObject(), this.layer.projection
+            );
+        }
+        return bounds;
     },
 
     /**
      * Method: invalidBounds
+     * Determine whether the previously requested set of features is invalid. 
+     *     This occurs when the new map bounds do not contain the previously 
+     *     requested bounds.  In addition, if <resFactor> is set, it will be 
+     *     considered.
      *
      * Parameters:
      * mapBounds - {<OpenLayers.Bounds>} the current map extent, will be
@@ -122,9 +166,14 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
      */
     invalidBounds: function(mapBounds) {
         if(!mapBounds) {
-            mapBounds = this.layer.map.getExtent();
+            mapBounds = this.getMapBounds();
         }
-        return !this.bounds || !this.bounds.containsBounds(mapBounds);
+        var invalid = !this.bounds || !this.bounds.containsBounds(mapBounds);
+        if(!invalid && this.resFactor) {
+            var ratio = this.resolution / this.layer.map.getResolution();
+            invalid = (ratio >= this.resFactor || ratio <= (1 / this.resFactor));
+        }
+        return invalid;
     },
  
     /**
@@ -136,7 +185,7 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
      */
     calculateBounds: function(mapBounds) {
         if(!mapBounds) {
-            mapBounds = this.layer.map.getExtent();
+            mapBounds = this.getMapBounds();
         }
         var center = mapBounds.getCenterLonLat();
         var dataWidth = mapBounds.getWidth() * this.ratio;
@@ -157,13 +206,10 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
      *      returned by the layer protocol.
      */
     triggerRead: function() {
-        var filter = this.createFilter();
-        if (this.response && this.response.priv &&
-            typeof this.response.priv.abort == "function") {
-            this.response.priv.abort();
-        }
+        this.layer.protocol.abort(this.response);
+        this.layer.events.triggerEvent("loadstart");
         this.response = this.layer.protocol.read({
-            filter: filter,
+            filter: this.createFilter(),
             callback: this.merge,
             scope: this
         });
@@ -193,6 +239,8 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
     /**
      * Method: merge
      * Given a list of features, determine which ones to add to the layer.
+     *     If the layer projection differs from the map projection, features
+     *     will be transformed from the layer projection to the map projection.
      *
      * Parameters:
      * resp - {<OpenLayers.Protocol.Response>} The response object passed
@@ -202,8 +250,20 @@ OpenLayers.Strategy.BBOX = OpenLayers.Class(OpenLayers.Strategy, {
         this.layer.destroyFeatures();
         var features = resp.features;
         if(features && features.length > 0) {
+            var remote = this.layer.projection;
+            var local = this.layer.map.getProjectionObject();
+            if(!local.equals(remote)) {
+                var geom;
+                for(var i=0, len=features.length; i<len; ++i) {
+                    geom = features[i].geometry;
+                    if(geom) {
+                        geom.transform(remote, local);
+                    }
+                }
+            }
             this.layer.addFeatures(features);
         }
+        this.layer.events.triggerEvent("loadend");
     },
    
     CLASS_NAME: "OpenLayers.Strategy.BBOX" 

@@ -7,6 +7,7 @@
  * @requires OpenLayers/Layer/SphericalMercator.js
  * @requires OpenLayers/Layer/EventPane.js
  * @requires OpenLayers/Layer/FixedZoomLevels.js
+ * @requires OpenLayers/Console.js
  */
 
 /**
@@ -83,6 +84,18 @@ OpenLayers.Layer.Google = OpenLayers.Class(
      */
     dragObject: null, 
 
+    /**
+     * Property: termsOfUse
+     * {DOMElement} Div for Google's copyright and terms of use link
+     */
+    termsOfUse: null, 
+
+    /**
+     * Property: poweredBy
+     * {DOMElement} Div for Google's powered by logo and link
+     */
+    poweredBy: null, 
+
     /** 
      * Constructor: OpenLayers.Layer.Google
      * 
@@ -121,22 +134,32 @@ OpenLayers.Layer.Google = OpenLayers.Class(
                 this.dragPanMapObject = null;
             }
 
+            // move the ToS and branding stuff up to the container div
+            this.termsOfUse = this.div.lastChild;
+            this.div.removeChild(this.termsOfUse);
+            if (this.isFixed) {
+                this.map.viewPortDiv.appendChild(this.termsOfUse);
+            } else {
+                this.map.layerContainerDiv.appendChild(this.termsOfUse);
+            }
+            this.termsOfUse.style.zIndex = "1100";
+            this.termsOfUse.style.display = this.div.style.display;
+            this.termsOfUse.style.right = "";
+            this.termsOfUse.style.bottom = "";
+            this.termsOfUse.className = "olLayerGoogleCopyright";
 
-            // move the ToS and branding stuff up to the pane
-            // thanks a *mil* Erik for thinking of this
-            var poweredBy = this.div.lastChild;
-            this.div.removeChild(poweredBy);
-            this.pane.appendChild(poweredBy);
-            poweredBy.className = "olLayerGooglePoweredBy gmnoprint";
-            poweredBy.style.left = "";
-            poweredBy.style.bottom = "";
-
-            var termsOfUse = this.div.lastChild;
-            this.div.removeChild(termsOfUse);
-            this.pane.appendChild(termsOfUse);
-            termsOfUse.className = "olLayerGoogleCopyright";
-            termsOfUse.style.right = "";
-            termsOfUse.style.bottom = "";
+            this.poweredBy = this.div.lastChild;
+            this.div.removeChild(this.poweredBy);
+            if (this.isFixed) {
+                this.map.viewPortDiv.appendChild(this.poweredBy);
+            } else {
+                this.map.layerContainerDiv.appendChild(this.poweredBy);
+            }
+            this.poweredBy.style.zIndex = "1100";
+            this.poweredBy.style.display = this.div.style.display;
+            this.poweredBy.style.right = "";
+            this.poweredBy.style.bottom = "";
+            this.poweredBy.className = "olLayerGooglePoweredBy gmnoprint"; 
 
         } catch (e) {
             OpenLayers.Console.error(e);
@@ -189,13 +212,27 @@ OpenLayers.Layer.Google = OpenLayers.Class(
      * evt - {Event}
      */
     onMapResize: function() {
-        if(this.visibility) {
-            this.mapObject.checkResize();  
+        // workaround for resizing of invisible or not yet fully loaded layers
+        // where GMap2.checkResize() does not work. We need to load the GMap
+        // for the old div size, then checkResize(), and then call
+        // layer.moveTo() to trigger GMap.setCenter() (which will finish
+        // the GMap initialization).
+        if(this.visibility && this.mapObject.isLoaded()) {
+            this.mapObject.checkResize();
         } else {
-            this.windowResized = true;
+            if(!this._resized) {
+                var layer = this;
+                var handle = GEvent.addListener(this.mapObject, "load", function() {
+                    GEvent.removeListener(handle);
+                    delete layer._resized;
+                    layer.mapObject.checkResize();
+                    layer.moveTo(layer.map.getCenter(), layer.map.getZoom());
+                })
+            }
+            this._resized = true;
         }
     },
-    
+
     /**
      * Method: display
      * Hide or show the layer
@@ -205,12 +242,29 @@ OpenLayers.Layer.Google = OpenLayers.Class(
      */
     display: function(display) {
         OpenLayers.Layer.EventPane.prototype.display.apply(this, arguments);
-        if(this.div.style.display == "block" && this.windowResized) {
-            this.mapObject.checkResize();
-            this.windowResized = false;
-        }
+        this.termsOfUse.style.display = this.div.style.display;
+        this.poweredBy.style.display = this.div.style.display;
     },
 
+    /**
+     * APIMethod: removeMap
+     * On being removed from the map, also remove termsOfUse and poweredBy divs
+     * 
+     * Parameters:
+     * map - {<OpenLayers.Map>}
+     */
+    removeMap: function(map) {
+        if (this.termsOfUse && this.termsOfUse.parentNode) {
+            this.termsOfUse.parentNode.removeChild(this.termsOfUse);
+            this.termsOfUse = null;
+        }
+        if (this.poweredBy && this.poweredBy.parentNode) {
+            this.poweredBy.parentNode.removeChild(this.poweredBy);
+            this.poweredBy = null;
+        }
+        OpenLayers.Layer.EventPane.prototype.removeMap.apply(this, arguments);
+    },
+    
     /**
      * APIMethod: getZoomForExtent
      * 

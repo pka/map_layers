@@ -3,6 +3,7 @@
  * full text of the license. */
 
 /**
+ * @requires OpenLayers/Format/WMC.js
  * @requires OpenLayers/Format/XML.js
  */
 
@@ -165,7 +166,7 @@ OpenLayers.Format.WMC.v1 = OpenLayers.Class(OpenLayers.Format.XML, {
      */
     read_wmc_Layer: function(context, node) {
         var layerInfo = {
-            params: {},
+            params: this.layerParams || {},
             options: {
                 visibility: (node.getAttribute("hidden") != "1"),
                 queryable: (node.getAttribute("queryable") == "1")

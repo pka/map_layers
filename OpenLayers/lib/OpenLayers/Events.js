@@ -436,6 +436,14 @@ OpenLayers.Events = OpenLayers.Class({
     includeXY: false,      
 
     /**
+     * Method: clearMouseListener
+     * A version of <clearMouseCache> that is bound to this instance so that
+     *     it can be used with <OpenLayers.Event.observe> and
+     *     <OpenLayers.Event.stopObserving>.
+     */
+    clearMouseListener: null,
+
+    /**
      * Constructor: OpenLayers.Events
      * Construct an OpenLayers.Events object.
      *
@@ -450,7 +458,6 @@ OpenLayers.Events = OpenLayers.Class({
     initialize: function (object, element, eventTypes, fallThrough, options) {
         OpenLayers.Util.extend(this, options);
         this.object     = object;
-        this.element    = element;
         this.fallThrough = fallThrough;
         this.listeners  = {};
 
@@ -458,6 +465,11 @@ OpenLayers.Events = OpenLayers.Class({
         // pass the same function to both Event.observe() and .stopObserving()
         this.eventHandler = OpenLayers.Function.bindAsEventListener(
             this.handleBrowserEvent, this
+        );
+        
+        // to be used with observe and stopObserving
+        this.clearMouseListener = OpenLayers.Function.bind(
+            this.clearMouseCache, this
         );
 
         // if eventTypes is specified, create a listeners list for each 
@@ -471,7 +483,7 @@ OpenLayers.Events = OpenLayers.Class({
         
         // if a dom element is specified, add a listeners list 
         // for browser events on the element and register them
-        if (this.element != null) {
+        if (element != null) {
             this.attachToElement(element);
         }
     },
@@ -482,6 +494,11 @@ OpenLayers.Events = OpenLayers.Class({
     destroy: function () {
         if (this.element) {
             OpenLayers.Event.stopObservingElement(this.element);
+            if(this.element.hasScrollEvent) {
+                OpenLayers.Event.stopObserving(
+                    window, "scroll", this.clearMouseListener
+                );
+            }
         }
         this.element = null;
 
@@ -514,6 +531,10 @@ OpenLayers.Events = OpenLayers.Class({
      * element - {HTMLDOMElement} a DOM element to attach browser events to
      */
     attachToElement: function (element) {
+        if(this.element) {
+            OpenLayers.Event.stopObservingElement(this.element);
+        }
+        this.element = element;
         for (var i=0, len=this.BROWSER_EVENTS.length; i<len; i++) {
             var eventType = this.BROWSER_EVENTS[i];
 
@@ -690,6 +711,12 @@ OpenLayers.Events = OpenLayers.Class({
      *     chain of listeners will stop getting called.
      */
     triggerEvent: function (type, evt) {
+        var listeners = this.listeners[type];
+
+        // fast path
+        if(!listeners || listeners.length == 0) {
+            return;
+        }
 
         // prep evt object with object & div references
         if (evt == null) {
@@ -704,24 +731,20 @@ OpenLayers.Events = OpenLayers.Class({
         // execute all callbacks registered for specified type
         // get a clone of the listeners array to
         // allow for splicing during callbacks
-        var listeners = (this.listeners[type]) ?
-                            this.listeners[type].slice() : null;
-        if ((listeners != null) && (listeners.length > 0)) {
-            var continueChain;
-            for (var i=0, len=listeners.length; i<len; i++) {
-                var callback = listeners[i];
-                // bind the context to callback.obj
-                continueChain = callback.func.apply(callback.obj, [evt]);
-    
-                if ((continueChain != undefined) && (continueChain == false)) {
-                    // if callback returns false, execute no more callbacks.
-                    break;
-                }
+        var listeners = listeners.slice(), continueChain;
+        for (var i=0, len=listeners.length; i<len; i++) {
+            var callback = listeners[i];
+            // bind the context to callback.obj
+            continueChain = callback.func.apply(callback.obj, [evt]);
+
+            if ((continueChain != undefined) && (continueChain == false)) {
+                // if callback returns false, execute no more callbacks.
+                break;
             }
-            // don't fall through to other DOM elements
-            if (!this.fallThrough) {           
-                OpenLayers.Event.stop(evt, true);
-            }
+        }
+        // don't fall through to other DOM elements
+        if (!this.fallThrough) {           
+            OpenLayers.Event.stop(evt, true);
         }
         return continueChain;
     },
@@ -768,23 +791,24 @@ OpenLayers.Events = OpenLayers.Class({
         if (!this.includeXY) {
             this.clearMouseCache();
         } else if (!this.element.hasScrollEvent) {
-            OpenLayers.Event.observe(window, 'scroll', 
-                OpenLayers.Function.bind(this.clearMouseCache, this)); 
+            OpenLayers.Event.observe(window, "scroll", this.clearMouseListener);
             this.element.hasScrollEvent = true;
         }
         
         if (!this.element.scrolls) {
-            this.element.scrolls = [];
-            this.element.scrolls[0] = (document.documentElement.scrollLeft
-                         || document.body.scrollLeft);
-            this.element.scrolls[1] = (document.documentElement.scrollTop
-                         || document.body.scrollTop);
+            this.element.scrolls = [
+                (document.documentElement.scrollLeft
+                         || document.body.scrollLeft),
+                (document.documentElement.scrollTop
+                         || document.body.scrollTop)
+            ];
         }
 
         if (!this.element.lefttop) {
-            this.element.lefttop = [];
-            this.element.lefttop[0] = (document.documentElement.clientLeft || 0);
-            this.element.lefttop[1] = (document.documentElement.clientTop || 0);
+            this.element.lefttop = [
+                (document.documentElement.clientLeft || 0),
+                (document.documentElement.clientTop  || 0)
+            ];
         }
         
         if (!this.element.offsets) {
