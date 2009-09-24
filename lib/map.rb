@@ -21,6 +21,7 @@ module MapLayers
       "http://t4.hypercube.telascience.org/tiles?"
     ], 
     {:layers => 'osm-4326', :format => 'image/png' } )
+  OSM_MAPNIK = Layer::OSM.new("Mapnik")
   GEOPOLE_OSM = Layer::TMS.new("Geopole Street Map", 
     "http://tms.geopole.org/", 
     {:layername => 'geopole_street', :type => 'png', :maxResolution => 0.703125,
