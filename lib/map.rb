@@ -1,7 +1,7 @@
 require 'js_wrapper'
-  
+
 module MapLayers
-  
+
   GOOGLE = Layer::Google.new("Google Street")
   GOOGLE_SATELLITE = Layer::Google.new("Google Satelite", {:type => :G_SATELLITE_MAP})
   GOOGLE_HYBRID = Layer::Google.new("Google Hybrid", {:type => :G_HYBRID_MAP})
@@ -13,26 +13,26 @@ module MapLayers
   YAHOO_SATELLITE = Layer::Yahoo.new("Yahoo Satelite", {:type => :YAHOO_MAP_SAT})
   YAHOO_HYBRID = Layer::Yahoo.new("Yahoo Hybrid", {:type => :YAHOO_MAP_HYB})
   MULTIMAP = Layer::MultiMap.new("MultiMap")
-  OPENSTREETMAP = Layer::WMS.new("OpenStreetMap", 
+  OSM_MAPNIK = Layer::OSM.new("OpenStreetMap")
+  OSM_TELASCIENCE = Layer::WMS.new("OpenStreetMap",
     [
       "http://t1.hypercube.telascience.org/tiles?",
       "http://t2.hypercube.telascience.org/tiles?",
       "http://t3.hypercube.telascience.org/tiles?",
       "http://t4.hypercube.telascience.org/tiles?"
-    ], 
+    ],
     {:layers => 'osm-4326', :format => 'image/png' } )
-  OSM_MAPNIK = Layer::OSM.new("Mapnik")
-  GEOPOLE_OSM = Layer::TMS.new("Geopole Street Map", 
-    "http://tms.geopole.org/", 
+  GEOPOLE_OSM = Layer::TMS.new("Geopole Street Map",
+    "http://tms.geopole.org/",
     {:layername => 'geopole_street', :type => 'png', :maxResolution => 0.703125,
      :attribution => 'Map data <a href="http://creativecommons.org/licenses/by-sa/2.0/">CCBYSA</a> 2009 <a href="http://openstreetmap.org/">OpenStreetMap.org</a>'})
-  NASA_GLOBAL_MOSAIC = Layer::WMS.new("NASA Global Mosaic", 
+  NASA_GLOBAL_MOSAIC = Layer::WMS.new("NASA Global Mosaic",
     [
       "http://t1.hypercube.telascience.org/cgi-bin/landsat7",
       "http://t2.hypercube.telascience.org/cgi-bin/landsat7",
       "http://t3.hypercube.telascience.org/cgi-bin/landsat7",
       "http://t4.hypercube.telascience.org/cgi-bin/landsat7"
-    ], 
+    ],
     {:layers => 'landsat7'} )
   BLUE_MARBLE_NG = Layer::WMS.new("Blue Marble NG",
     "http://wms.telascience.org/cgi-bin/ngBM_wms",
@@ -51,7 +51,7 @@ module MapLayers
   #Map viewer main class
   class Map
     include JsWrapper
-        
+
     def initialize(map, options = {}, &block)
       @container = map
       @variable = map
@@ -60,32 +60,32 @@ module MapLayers
       yield(self, @js) if block_given?
     end
 
-    #Outputs in JavaScript the creation of a OpenLayers.Map object 
+    #Outputs in JavaScript the creation of a OpenLayers.Map object
     def create
       "new OpenLayers.Map('#{@container}', #{JsWrapper::javascriptify_variable(@options)})"
     end
-    
+
     #Outputs the initialization code for the map
     def to_html(options = {})
       no_script_tag = options[:no_script_tag]
       no_declare = options[:no_declare]
       no_global = options[:no_global]
-        
+
       html = ""
       html << "<script defer=\"defer\" type=\"text/javascript\">\n" if !no_script_tag
       #put the functions in a separate javascript file to be included in the page
       html << "var #{@variable};\n" if !no_declare and !no_global
 
-      if !no_declare and no_global 
+      if !no_declare and no_global
         html << "#{declare(@variable)}\n"
       else
         html << "#{assign_to(@variable)}\n"
       end
       html << @js.to_s
       html << "</script>\n" if !no_script_tag
-        
+
       html
     end
   end
-  
+
 end

@@ -23,7 +23,7 @@ module MapLayers
       if options.has_key?(:yahoo)
         html << "<script type=\"text/javascript\" src=\"http://api.maps.yahoo.com/ajaxymap?v=3.0&appid=#{options[:yahoo]}\"></script>"
       end
-      
+
       if RAILS_ENV == "development" && File.exist?(File.join(RAILS_ROOT, 'public/javascripts/lib/OpenLayers.js'))
         html << '<script src="/javascripts/lib/Firebug/firebug.js"></script>'
         html << '<script src="/javascripts/lib/OpenLayers.js"></script>'
@@ -35,7 +35,7 @@ module MapLayers
       html << javascript_tag("OpenLayers.ImgPath='/images/OpenLayers/';")
       proxy = options.has_key?(:proxy) ? options[:proxy] : controller.controller_name
       html << javascript_tag("OpenLayers.ProxyHost='/#{proxy}/proxy?url=';")
-      
+
       html
     end
   end

@@ -5,7 +5,7 @@ module MapLayers
   module JsWrapper
     #The name of the variable in JavaScript space.
     attr_reader :variable
-      
+
     #Creates javascript code for missing methods + takes care of listeners
     def method_missing(name,*args)
       str_name = name.to_s
@@ -14,7 +14,7 @@ module MapLayers
       end
       JsExpr.new("#{to_javascript}.#{JsWrapper.javascriptify_method(str_name)}(#{args.join(",")})")
     end
-      
+
     # Creates javascript code for method calls
     def javascriptify_method_call(name,*args)
       args.collect! do |arg|
@@ -22,7 +22,7 @@ module MapLayers
       end
       JsExpr.new("#{to_javascript}.#{JsWrapper.javascriptify_method(name.to_s)}(#{args.join(",")})")
     end
-            
+
     #Creates javascript code for array or hash indexing
     def [](index) #index could be an integer or string
       return JsExpr.new("#{to_javascript}[#{JsWrapper.javascriptify_variable(index)}]")
@@ -46,17 +46,17 @@ module MapLayers
         arg.to_s
       end
     end
-      
+
     #Escape string to be used in JavaScript. Lifted from rails.
     def self.escape_javascript(javascript)
       javascript.gsub(/\r\n|\n|\r/, "\\n").gsub("\"") { |m| "\\#{m}" }
     end
-      
+
     #Transform a ruby-type method name (like add_overlay) to a JavaScript-style one (like addOverlay).
     def self.javascriptify_method(method_name)
       method_name.gsub(/_(\w)/){|s| $1.upcase}
     end
-      
+
     #Declares a Mapping Object bound to a JavaScript variable of name +variable+.
     def declare(variable)
       @variable = variable
@@ -74,7 +74,7 @@ module MapLayers
     def declared?
       !@variable.nil?
     end
-      
+
     #Binds a Mapping object to a previously declared JavaScript variable of name +variable+.
     def assign_to(variable)
       @variable = variable
@@ -90,7 +90,7 @@ module MapLayers
     def get_property(property)
       JsExpr.new("#{to_javascript}.#{JsWrapper.javascriptify_method(property.to_s)}")
     end
-      
+
     #Returns a Javascript code representing the object
     def to_javascript
       unless @variable.nil?
@@ -114,7 +114,7 @@ module MapLayers
   #A valid JavaScript expression that has a value.
   class JsExpr
     include JsWrapper
-      
+
     def initialize(expr)
       @variable = expr
     end
@@ -129,20 +129,20 @@ module MapLayers
     UNDEFINED = JsExpr.new("undefined")
   end
 
-  
+
   #Used to bind a ruby variable to an already existing JavaScript one.
   class JsVar < JsExpr
   end
 
-  
+
   #Minimal Wrapper around a Javascript class
   class JsClass
     include JsWrapper
-    
+
     def initialize(*args)
       @args = args
     end
-    
+
     def create
       jsclass = self.class.to_s.split(/::/)[1..-1]
       jsclass.insert(0, 'OpenLayers') unless jsclass[0] == 'OpenLayers'
@@ -150,7 +150,7 @@ module MapLayers
       JsExpr.new("new #{jsclass.join('.')}(#{args.join(',')})")
     end
   end
-  
+
   class JsGenerator # :nodoc:
     def initialize()
       @lines = ''

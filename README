@@ -47,7 +47,7 @@ Add the Yahoo Javascript library to the includes:
   <%= map_layers_includes :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ", :yahoo => "euzuro-openlayers" %>
 
 There are many more predefined layer types available:
-GOOGLE_SATELLITE, GOOGLE_HYBRID, GOOGLE_PHYSICAL, VE_ROAD, VE_AERIAL, VE_HYBRID, YAHOO, YAHOO_SATELLITE, YAHOO_HYBRID, MULTIMAP, OPENSTREETMAP, GEOPOLE_OSM, NASA_GLOBAL_MOSAIC, BLUE_MARBLE_NG, WORLDWIND, WORLDWIND_URBAN, WORLDWIND_BATHY
+GOOGLE_SATELLITE, GOOGLE_HYBRID, GOOGLE_PHYSICAL, VE_ROAD, VE_AERIAL, VE_HYBRID, YAHOO, YAHOO_SATELLITE, YAHOO_HYBRID, MULTIMAP, OSM_MAPNIK, OSM_TELASCIENCE, GEOPOLE_OSM, NASA_GLOBAL_MOSAIC, BLUE_MARBLE_NG, WORLDWIND, WORLDWIND_URBAN, WORLDWIND_BATHY
 
 To include all Javascript APIs, insert your API keys in the following statement:
   <%= map_layers_includes :google => "ABQIAAAA3HdfrnxFAPWyY-aiJUxmqRTJQa0g3IQ9GZqIMmInSLzwtGDKaBQ0KYLwBEKSM7F9gCevcsIf6WPuIQ", :multimap => "metacarta_04", :virtualearth => true, :yahoo => "euzuro-openlayers" %>
