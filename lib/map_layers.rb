@@ -27,7 +27,7 @@ module MapLayers # :nodoc:
         include MapLayers::Rest
       end
 
-      session :off, :only => [:kml, :wfs, :georss]
+      #session :off, :only => [:kml, :wfs, :georss]
 
     end
 
@@ -73,9 +73,9 @@ module MapLayers # :nodoc:
       rows = map_layers_config.model.find(:all, :limit => KML_FEATURE_LIMIT)
       @features = rows.collect do |row|
         if map_layers_config.geometry
-          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
+          Feature.from_geom(row.send(map_layers_config.text), row.send(map_layers_config.geometry))
         else
-          Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s])
+          Feature.new(row.send(map_layers_config.text), row.send(map_layers_config.lon), row.send(map_layers_config.lat))
         end
       end
       @folder_name = map_layers_config.model_id.to_s.pluralize.humanize
@@ -126,8 +126,6 @@ EOS
       minx, miny, maxx, maxy = extract_params
       model = map_layers_config.model
       if map_layers_config.geometry
-        #Columns for select
-        pkey, text, geom = [model.primary_key, map_layers_config.text, map_layers_config.geometry].collect { |c| model.connection.quote_column_name(c) }
         db_srid = model.columns_hash[map_layers_config.geometry.to_s].srid
         if db_srid != @srid && !db_srid.nil? && db_srid != -1
           #Transform geometry from db_srid to requested srid (not possible for undefined db_srid)
@@ -141,14 +139,14 @@ EOS
         end
         #spatial_cond = "Transform(#{spatial_cond}, #{db_srid}) )" Not necessary: bbox is always WGS84 !?
 
-        rows = model.find(:all, :select => [pkey, text, geom].join(","), :conditions => spatial_cond, :limit => @maxfeatures)
+        rows = model.find(:all, :conditions => spatial_cond, :limit => @maxfeatures)
         @features = rows.collect do |row|
-          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s])
+          Feature.from_geom(row.send(map_layers_config.text), row.send(map_layers_config.geometry.to_s))
         end
       else
         rows = model.find(:all, :limit => @maxfeatures)
         @features = rows.collect do |row|
-          Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s])
+          Feature.new(row.send(map_layers_config.text), row.send(map_layers_config.lon), row.send(map_layers_config.lat))
         end
       end
       logger.info "MapLayers::WFS: returning #{@features.size} features"
@@ -229,9 +227,9 @@ EOS
       rows = map_layers_config.model.find(:all, :limit => GEORSS_FEATURE_LIMIT)
       @features = rows.collect do |row|
         if map_layers_config.geometry
-          Feature.from_geom(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.geometry.to_s], row.attributes[map_layers_config.id.to_s])
+          Feature.from_geom(row.send(map_layers_config.text), row.send(map_layers_config.geometry), row.send(map_layers_config.id))
         else
-          Feature.new(row.attributes[map_layers_config.text.to_s], row.attributes[map_layers_config.lon.to_s], row.attributes[map_layers_config.lat.to_s], row.attributes[map_layers_config.id.to_s])
+          Feature.new(row.send(map_layers_config.text), row.send(map_layers_config.lon), row.send(map_layers_config.lat))
         end
       end
       @base_url = "http://#{request.env["HTTP_HOST"]}/"
