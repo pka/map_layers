@@ -35,7 +35,8 @@ module MapLayers
       end
 
       html << stylesheet_link_tag("map")
-      html << javascript_tag("OpenLayers.ImgPath='"+  (ActionController::Base.relative_url_root||"") +"/"+img_path + "';")
+      img_path=(Pathname(ActionController::Base.relative_url_root||"") +img_path).cleanpath.to_s
+      html << javascript_tag("OpenLayers.ImgPath='"+ img_path  + "/';")
       proxy = options.has_key?(:proxy) ? options[:proxy] : controller.controller_name
       html << javascript_tag("OpenLayers.ProxyHost='/#{proxy}/proxy?url=';")
 
